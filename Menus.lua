@@ -131,7 +131,7 @@ function Menus:Open(panel)
     -- Restore geometry before changing the panel owning the shared presentation.
     local conversationSwitch = isQuestConversation(panel) and isQuestConversation(ui.genericMenu)
     if conversationSwitch then
-        -- Replace only the content; keep chrome, blackout, and backdrop visible.
+        -- Restore the old frame while retaining the shared conversation placement.
         ui:RestoreMenuFades()
         ui:RestoreNativePanelLayout()
     else

@@ -446,6 +446,18 @@ function UI:LayoutNativePanel()
     local availableWidth = area:GetWidth() * area:GetEffectiveScale()
     local availableHeight = area:GetHeight() * area:GetEffectiveScale()
     if availableWidth <= 0 or availableHeight <= 0 then return end
+    local conversation = panel == GossipFrame or panel == QuestFrame
+    local placement = conversation and self.questConversationLayout
+    if placement then
+        -- Both native frames share the opening conversation's scale and top-left
+        -- corner, even when their footer, content size, or parent scale differs.
+        self.layingOutNativePanel = true
+        panel:SetScale(placement.scale * area:GetEffectiveScale() / parentScale)
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", area, "CENTER", placement.x, placement.y)
+        self.layingOutNativePanel = nil
+        return
+    end
     -- Keep the opening footprint when focus hides native prompts (for example,
     -- inventory's More menu). Only a panel resize starts a new measurement.
     local width, height = panel:GetWidth(), panel:GetHeight()
@@ -463,6 +475,13 @@ function UI:LayoutNativePanel()
     panel:SetPoint("CENTER", area, "CENTER",
         (panel:GetWidth() - left - right) / 2,
         (panel:GetHeight() - bottom - top) / 2)
+    if conversation then
+        self.questConversationLayout = {
+            scale = panel:GetEffectiveScale() / area:GetEffectiveScale(),
+            x = -(left + right) / 2,
+            y = height - (bottom + top) / 2,
+        }
+    end
     self.layingOutNativePanel = nil
 end
 
@@ -604,6 +623,7 @@ function UI:ShowNativeChrome(nativeTab, mode)
 end
 
 function UI:HideNativeChrome()
+    self.questConversationLayout = nil
     self:RestoreMenuFades()
     NS.NativeBags:Close()
     local state = self.nativePanelLayout

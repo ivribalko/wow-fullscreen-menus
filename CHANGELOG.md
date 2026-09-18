@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserved the opening quest conversation's scale and position when switching between the quest list and quest details.
+
 - Updated the displayed addon name to Fullscreen Menus.
 
 - Kept open menu positioning and scale stable when native gamepad prompts hide for the inventory More menu.
