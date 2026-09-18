@@ -646,6 +646,7 @@ function UI:ShowNativeChrome(nativeTab, mode)
     self.nativeChrome:Show()
     self:UpdateControllerBindings()
     self:ApplyNativeVariant()
+    NS.Integration:SyncCharacterInventoryVisibility()
     self.menuSessionActive = true
     self:FadeNativeMenuIn(switching)
 end

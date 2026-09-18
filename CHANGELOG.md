@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Displayed only Character after selecting it from the gamepad wheel, preserving native trigger navigation to inventory.
+
 - Restored fullscreen presentation for visible menus after native interaction callbacks, including quest lists returning after quest completion.
 
 - Suspended fullscreen menu presentation during native Edit Mode and restored menu placement and surrounding UI when editing starts.

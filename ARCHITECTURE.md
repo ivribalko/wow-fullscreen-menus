@@ -36,6 +36,7 @@
 - Bank selector discovery reads the native page-tab pool in bank-type/page order for layout bounds.
 - Character discovery reads `ModeTabs.Tabs` frame-name metadata. Character and Player Spells availability is refreshed during navigation. Map discovery includes addon selectors outside Blizzard's managed array.
 - Forever uses native gamepad navigation with Fullscreen Menus L2/R2 menu bindings. Main-tab overrides are cleared when the chrome closes; L1/R1 remains native.
+- The wheel's paired Character/backpack opening follows final native focus instead of the deferred bag callback. Presentation conceals the inactive Character or inventory surface while both remain registered for native trigger navigation.
 - Secondary selectors remain visible in their native panels. Their native input handlers own navigation.
 - Forever isolates unrelated UI through alpha only, except for the minimap, which must be hidden to suppress client-rendered markers. Native gamepad focus frames are not hidden or quarantined.
 - UI isolation preserves Forever's `SmartNavigation`, `SoftCursor`, and `InputFunctionBindingButton_*` frames so native navigation and Circle/Back bindings stay active.

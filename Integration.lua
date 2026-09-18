@@ -58,6 +58,26 @@ function Integration:InstallNativeGamepadHooks()
     end)
 end
 
+-- The wheel opens bags alongside Character; display only the selected surface
+-- while retaining both native frames for trigger navigation.
+function Integration:SyncCharacterInventoryVisibility()
+    if InCombatLockdown() or self:HasInteraction() then return end
+    if not InputUtil or not InputUtil.IsGamepadUIEnabled() then return end
+    local mode = UI.nativeChromeMode
+    if mode ~= "character" and mode ~= "inventory" then return end
+    if not CharacterFrame or not CharacterFrame:IsShown() or not self:AreNativeBagsShown() then return end
+    local bags = NS.NativeBags
+    local function selectSurface(frame, selected)
+        self:ReleaseUIIsolationFrame(frame)
+        UI:CancelFade(frame)
+        if selected then bags:Reveal(frame) else bags:Conceal(frame) end
+    end
+    selectSurface(CharacterFrame, mode == "character")
+    for _, frame in ipairs(self:GetNativeBagFrames()) do
+        if frame ~= ContainerFrameContainer then selectSurface(frame, mode == "inventory") end
+    end
+end
+
 -- Native bindings own visibility; follow their final focus using presentation only.
 function Integration:ObserveNativeGamepadFocus(manager)
     if InCombatLockdown() or not UI.nativeChrome or not UI.nativeChrome:IsShown() then return end
@@ -783,6 +803,16 @@ function Integration:PresentNativeInventory()
     if self:IsEditModeActive() then return end
     if not self.ready or InCombatLockdown() or self.suppress then return end
     local panel = self:GetInteractionPanel()
+    -- A wheel selection opens the backpack before focusing Character. Its
+    -- deferred bag callback must not replace the final native selection.
+    local manager = GamepadMode and GamepadMode.FrameControlsManager
+    if not panel and InputUtil and InputUtil.IsGamepadUIEnabled()
+        and manager and manager:GetActiveFrame() == CharacterFrame
+        and CharacterFrame and CharacterFrame:IsShown() and self:AreNativeBagsShown() then
+        UI:ShowNativeChrome(CharacterFrame.activeSubframe, "character")
+        self.nativeFocusedPanel = CharacterFrame
+        return
+    end
     -- Bags opened by unsupported services must keep their native context.
     if not panel and self:HasInteraction() then return end
     if not panel and ((MailFrame and MailFrame:IsShown())
