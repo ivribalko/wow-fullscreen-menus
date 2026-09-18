@@ -1,0 +1,17 @@
+.DS_Store
+*.log
+.local/
+dist/
+__pycache__/
+
+# Credentials and local configuration
+.env
+.env.*
+*.pem
+*.key
+
+# Game settings and diagnostic captures
+WTF/
+SavedVariables/
+Screenshots/
+*.dmp

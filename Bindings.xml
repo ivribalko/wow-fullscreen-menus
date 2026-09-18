@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="FULLSCREENMENUS_TOGGLE" header="FULLSCREENMENUS">
+        FullscreenMenus_Toggle();
+    </Binding>
+</Bindings>

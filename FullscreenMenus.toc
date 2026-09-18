@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: Fullscreen Menus
+## IconTexture: Interface\AddOns\FullscreenMenus\Assets\AddonIcon.tga
+## Notes: Designed for playing WoW Forever on a TV. Enlarges and centers native menus, fits inventory bags, and hides distracting UI in a fullscreen layout with native controller support.
+## Version: @project-version@
+## OptionalDeps: EnhanceQoL
+## SavedVariables: FullscreenMenusAccountDB
+## SavedVariablesPerCharacter: FullscreenMenusDB
+
+Layout.lua
+Data.lua
+UI.lua
+NativeBags.lua
+Menus.lua
+Integration.lua
