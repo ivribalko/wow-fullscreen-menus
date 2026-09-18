@@ -1,7 +1,7 @@
 local _, NS = ...
 
 -- NativeBags distributes separate Blizzard bag windows without changing their item grids.
-local Bags = { saved = {}, watched = {}, concealed = {} }
+local Bags = { saved = {}, concealed = {} }
 NS.NativeBags = Bags
 
 -- Conceal the inactive surface without firing native OnHide interaction handlers.
@@ -103,6 +103,7 @@ function Bags:Restore()
         for _, point in ipairs(saved.points) do frame:SetPoint(unpack(point)) end
     end
     self.saved = {}
+    self.layoutApplied = nil
     self.updating = nil
 end
 
@@ -110,6 +111,7 @@ function Bags:Layout()
     if InCombatLockdown() or self.updating then return end
     self:UpdatePane()
     if not self:IsActive() then self:Restore(); return end
+    if self.layoutApplied then return end
     local frames = {}
     for _, frame in ipairs(NS.Integration:GetNativeBagFrames()) do
         if frame ~= ContainerFrameContainer and frame ~= ContainerFrameCombinedBags
@@ -153,13 +155,6 @@ function Bags:Layout()
             for point = 1, frame:GetNumPoints() do points[point] = { frame:GetPoint(point) } end
             self.saved[frame] = { scale = frame:GetScale(), points = points }
         end
-        if not self.watched[frame] then
-            self.watched[frame] = true
-            hooksecurefunc(frame, "SetPoint", function() self:Schedule() end)
-            hooksecurefunc(frame, "SetScale", function() self:Schedule() end)
-            frame:HookScript("OnSizeChanged", function() self:Schedule() end)
-            frame:HookScript("OnHide", function() self:Schedule() end)
-        end
         local row = math.floor((index - 1) / bestColumns)
         local column = (index - 1) % bestColumns
         local count = math.min(bestColumns, #frames - row * bestColumns)
@@ -171,5 +166,6 @@ function Bags:Layout()
             (ui.edgeMargin + column * (cellWidth + gap) + cellWidth / 2) / bestScale,
             -(top + row * (cellHeight + gap) + cellHeight / 2) / bestScale)
     end
+    self.layoutApplied = true
     self.updating = nil
 end

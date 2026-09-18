@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fitted menus and inventory once per menu type, ignoring content and size changes until switching menus or reopening.
+
+- Avoided redundant scale and anchor updates that disturb native game menu button text during periodic layout refreshes.
+
 - Preserved the opening quest conversation's scale and position when switching between the quest list and quest details.
 
 - Updated the displayed addon name to Fullscreen Menus.

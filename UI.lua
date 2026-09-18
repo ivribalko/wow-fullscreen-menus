@@ -330,12 +330,13 @@ end
 
 function UI:UpdateNativePanelArea()
     local area = self.nativePanelArea
-    if not area then return end
+    if not area or self.nativePanelAreaAnchored then return end
     area:ClearAllPoints()
     area:SetPoint("LEFT", self.nativeChrome, "LEFT", self.edgeMargin, 0)
     area:SetPoint("RIGHT", self.nativeChrome, "RIGHT", -self.edgeMargin, 0)
     area:SetPoint("BOTTOM", self.nativeChrome, "BOTTOM", 0, self.edgeMargin)
     area:SetPoint("TOP", self.nativeChrome, "TOP", 0, -(self.edgeMargin + Layout.topPadding))
+    self.nativePanelAreaAnchored = true
 end
 
 function UI:RestoreNativePanelLayout()
@@ -406,38 +407,40 @@ function UI:GetNativePanelBounds(panel)
     return left, bottom, right, top
 end
 
+-- Avoid invalidating native button/text geometry on unchanged periodic refreshes.
+local function applyPanelPlacement(panel, scale, point, area, x, y)
+    local function equal(a, b)
+        return a and b and math.abs(a - b) < 0.000001
+    end
+    if not equal(panel:GetScale(), scale) then panel:SetScale(scale) end
+    if panel:GetNumPoints() == 1 then
+        local anchor, relative, relativePoint, offsetX, offsetY = panel:GetPoint(1)
+        if anchor == point and relative == area and relativePoint == "CENTER"
+            and equal(offsetX, x) and equal(offsetY, y) then return end
+    end
+    panel:ClearAllPoints()
+    panel:SetPoint(point, area, "CENTER", x, y)
+end
+
 function UI:LayoutNativePanel()
     if InCombatLockdown() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
     if not self.nativeChrome or not self.nativeChrome:IsShown() then return end
     self:UpdateNativePanelArea()
     local panel = self:GetNativePanel()
     if not panel or not panel:IsShown() or panel:GetWidth() <= 0 or panel:GetHeight() <= 0 then return end
-    self.nativePanelWatches = self.nativePanelWatches or setmetatable({}, { __mode = "k" })
-    if not self.nativePanelWatches[panel] then
-        self.nativePanelWatches[panel] = true
-        panel:HookScript("OnSizeChanged", function()
-            if not self.layingOutNativePanel then self:ScheduleNativePanelLayout() end
-        end)
-        -- Reapply placement within the native call, before its side anchor can render.
-        local function keepPlacement()
-            if self.nativePanelLayout and self.nativePanelLayout.panel == panel then
-                self:LayoutNativePanel()
-            end
-        end
-        hooksecurefunc(panel, "SetPoint", keepPlacement)
-        hooksecurefunc(panel, "SetScale", keepPlacement)
-    end
     local state = self.nativePanelLayout
-    if state and state.panel ~= panel then
+    local menuType = self.nativeChromeTab or self.nativeChromeMode
+    if state and (state.panel ~= panel or state.menuType ~= menuType) then
         self:RestoreNativePanelLayout()
         state = nil
     end
+    if state and state.applied then return end
     if not state then
         local points = {}
         for index = 1, panel:GetNumPoints() do
             points[index] = { panel:GetPoint(index) }
         end
-        state = { panel = panel, points = points, scale = panel:GetScale() }
+        state = { panel = panel, points = points, scale = panel:GetScale(), menuType = menuType }
         self.nativePanelLayout = state
     end
 
@@ -452,27 +455,20 @@ function UI:LayoutNativePanel()
         -- Both native frames share the opening conversation's scale and top-left
         -- corner, even when their footer, content size, or parent scale differs.
         self.layingOutNativePanel = true
-        panel:SetScale(placement.scale * area:GetEffectiveScale() / parentScale)
-        panel:ClearAllPoints()
-        panel:SetPoint("TOPLEFT", area, "CENTER", placement.x, placement.y)
+        applyPanelPlacement(panel, placement.scale * area:GetEffectiveScale() / parentScale,
+            "TOPLEFT", area, placement.x, placement.y)
+        state.applied = true
         self.layingOutNativePanel = nil
         return
     end
-    -- Keep the opening footprint when focus hides native prompts (for example,
-    -- inventory's More menu). Only a panel resize starts a new measurement.
+    -- Measure once for this menu type; content and size changes keep its layout.
     local width, height = panel:GetWidth(), panel:GetHeight()
-    if not state.bounds or state.width ~= width or state.height ~= height then
-        state.bounds = { self:GetNativePanelBounds(panel) }
-        state.width, state.height = width, height
-    end
-    local left, bottom, right, top = unpack(state.bounds)
+    local left, bottom, right, top = self:GetNativePanelBounds(panel)
     local naturalWidth = (right - left) * parentScale * state.scale
     local naturalHeight = (top - bottom) * parentScale * state.scale
     local fit = math.min(Layout.maxScale, availableWidth / naturalWidth, availableHeight / naturalHeight)
     self.layingOutNativePanel = true
-    panel:SetScale(state.scale * fit)
-    panel:ClearAllPoints()
-    panel:SetPoint("CENTER", area, "CENTER",
+    applyPanelPlacement(panel, state.scale * fit, "CENTER", area,
         (panel:GetWidth() - left - right) / 2,
         (panel:GetHeight() - bottom - top) / 2)
     if conversation then
@@ -482,6 +478,7 @@ function UI:LayoutNativePanel()
             y = height - (bottom + top) / 2,
         }
     end
+    state.applied = true
     self.layingOutNativePanel = nil
 end
 
