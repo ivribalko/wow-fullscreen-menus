@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reserved space for the map's gamepad footers at opening, including hidden focus variants, to keep bottom prompts inside the safe area without later refitting.
+
 - Fitted menus and inventory once per menu type, ignoring content and size changes until switching menus or reopening.
 
 - Avoided redundant scale and anchor updates that disturb native game menu button text during periodic layout refreshes.

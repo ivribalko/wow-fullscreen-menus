@@ -404,6 +404,24 @@ function UI:GetNativePanelBounds(panel)
         end
     end
     includeLegends(panel)
+    -- Map focus swaps footers after opening. Reserve their below-map footprint
+    -- even while hidden, without activating bindings or refitting on focus changes.
+    if panel == WorldMapFrame and not panel:IsMaximized() then
+        for _, key in ipairs({ "worldMapFooter", "questLogFooter", "questDetailsFooter", "navigationFooter" }) do
+            local footer = panel[key]
+            local legend = footer and footer.inputLegend
+            if legend and not legend:IsForbidden() then
+                local container = legend.promptContainerFrame
+                local scale = legend:GetEffectiveScale() / panelScale
+                local legendHeight = legend:GetHeight()
+                if container and not container:IsForbidden() then
+                    legendHeight = math.max(legendHeight,
+                        container:GetHeight() * container:GetEffectiveScale() / legend:GetEffectiveScale())
+                end
+                bottom = math.min(bottom, ((footer.yOffset or 0) - legendHeight) * scale - Layout.rowGap)
+            end
+        end
+    end
     return left, bottom, right, top
 end
 
