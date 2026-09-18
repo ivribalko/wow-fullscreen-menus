@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restored saved menu placement after native repositioning, keeping quest rewards centered after Continue without refitting.
+
 - Reserved space for the map's gamepad footers at opening, including hidden focus variants, to keep bottom prompts inside the safe area without later refitting.
 
 - Fitted menus and inventory once per menu type, ignoring content and size changes until switching menus or reopening.

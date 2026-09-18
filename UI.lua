@@ -452,7 +452,15 @@ function UI:LayoutNativePanel()
         self:RestoreNativePanelLayout()
         state = nil
     end
-    if state and state.applied then return end
+    if state and state.applied then
+        -- Native quest progress/reward transitions can reposition an open panel.
+        -- Restore its fitted geometry without measuring changing content again.
+        self.layingOutNativePanel = true
+        applyPanelPlacement(panel, state.placement.scale, state.placement.point,
+            self.nativePanelArea, state.placement.x, state.placement.y)
+        self.layingOutNativePanel = nil
+        return
+    end
     if not state then
         local points = {}
         for index = 1, panel:GetNumPoints() do
@@ -475,6 +483,7 @@ function UI:LayoutNativePanel()
         self.layingOutNativePanel = true
         applyPanelPlacement(panel, placement.scale * area:GetEffectiveScale() / parentScale,
             "TOPLEFT", area, placement.x, placement.y)
+        state.placement = { scale = panel:GetScale(), point = "TOPLEFT", x = placement.x, y = placement.y }
         state.applied = true
         self.layingOutNativePanel = nil
         return
@@ -489,6 +498,10 @@ function UI:LayoutNativePanel()
     applyPanelPlacement(panel, state.scale * fit, "CENTER", area,
         (panel:GetWidth() - left - right) / 2,
         (panel:GetHeight() - bottom - top) / 2)
+    state.placement = {
+        scale = panel:GetScale(), point = "CENTER",
+        x = (width - left - right) / 2, y = (height - bottom - top) / 2,
+    }
     if conversation then
         self.questConversationLayout = {
             scale = panel:GetEffectiveScale() / area:GetEffectiveScale(),
