@@ -94,6 +94,7 @@ The project is licensed under the [MIT License](LICENSE). World of Warcraft and 
 - Enclose diagnostic code, calls, hooks, and timers in `--@alpha@` / `--@end-alpha@` markers so beta and release builds exclude them.
 - Always reuse shared spacing constants for layout gaps instead of duplicating literal spacing values.
 - Target the installed Forever beta interface version; use native handlers for inventory actions and retain native transaction confirmations.
+- Search WoW UI source when needed: https://github.com/Gethe/wow-ui-source
 - Keep category and discovery logic independent of rendering, and document each module's purpose.
 - Use native item textures, the native player-model preview, and simple shapes; do not add generated artwork.
 - Keep runtime data, personal information, and local temporary files out of Git.
