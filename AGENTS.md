@@ -49,7 +49,7 @@ Native panels and their visible selectors scale proportionally and center in the
 
 An 80% black backdrop covers the game viewport, while native content stays inside the UI safe area. Menus, the backdrop, and unrelated UI use short fades when opening or closing; tab switches are immediate. Forever closes native menus immediately instead of invoking their close handlers from a fade timer. Closing restores native placement and previously visible UI. On Forever beta, unrelated UI is faded without hiding or reparenting native frames, preserving native gamepad focus callbacks.
 
-Registered native menus are discovered automatically. Nested selectors remain part of their parent menu. The loot pickup popup, tutorial bubbles, incidental popups, forbidden frames, and combat are excluded from automatic presentation.
+Registered native menus are discovered automatically. Opening and interaction callbacks recheck visible menus after native handlers finish, restoring fullscreen presentation if a quest completion or other interaction clears it. Periodic discovery also recovers visible menus missing their presentation. Nested selectors remain part of their parent menu. The loot pickup popup, tutorial bubbles, incidental popups, forbidden frames, and combat are excluded from automatic presentation.
 
 ## Development
 

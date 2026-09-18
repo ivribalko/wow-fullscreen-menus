@@ -1021,7 +1021,8 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
         end
         Integration.interactions[argument] = true
 
-        Integration:Close()
+        if not (UI.genericMenu and UI.genericMenu:IsVisible()) then Integration:Close() end
+        NS.Menus:Discover()
     elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
         if isBankInteraction(argument) then
             Integration:BankClosed()
@@ -1046,7 +1047,8 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
                 return
             end
 
-            Integration:Close()
+            if not (UI.genericMenu and UI.genericMenu:IsVisible()) then Integration:Close() end
+            NS.Menus:Discover()
         else
             if event == "MERCHANT_CLOSED" then
                 Integration:ServiceClosed("merchant")

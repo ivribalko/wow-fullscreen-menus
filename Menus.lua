@@ -186,12 +186,31 @@ function Menus:RevealOpening(panel)
     end
 end
 
+-- Native interaction events can clear presentation after a panel's show hook.
+function Menus:SchedulePresentationCheck()
+    if self.presentationCheckPending then return end
+    self.presentationCheckPending = true
+    C_Timer.After(0, function()
+        self.presentationCheckPending = nil
+        local ui, integration = NS.UI, NS.Integration
+        if integration:IsEditModeActive() or InCombatLockdown() or integration.suppress or integration.restoringUI
+            or not ui.nativeChrome or ui.nativeChrome:IsShown() then return end
+        for panel in pairs(self.watched) do
+            if panel:IsVisible() then
+                self:Open(panel)
+                if ui.nativeChrome:IsShown() then return end
+            end
+        end
+    end)
+end
+
 function Menus:Watch(panel)
     panel = self:GetMenuRoot(panel)
     if not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel) or self.watched[panel] then return end
     self.watched[panel] = true
     panel:HookScript("OnShow", function()
         self:QueueOpen(panel)
+        self:SchedulePresentationCheck()
     end)
     panel:HookScript("OnHide", function()
         self:RevealOpening(panel)
@@ -229,6 +248,7 @@ function Menus:Discover()
             self:Watch(panel)
         end
     end
+    self:SchedulePresentationCheck()
 end
 
 function Menus:Initialize()
@@ -237,6 +257,7 @@ function Menus:Initialize()
     hooksecurefunc("ShowUIPanel", function(panel)
         self:Watch(panel)
         self:QueueOpen(panel)
+        self:SchedulePresentationCheck()
     end)
     hooksecurefunc("UpdateUIPanelPositions", function() NS.UI:LayoutNativePanel() end)
     self:Discover()

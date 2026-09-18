@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restored fullscreen presentation for visible menus after native interaction callbacks, including quest lists returning after quest completion.
+
 - Suspended fullscreen menu presentation during native Edit Mode and restored menu placement and surrounding UI when editing starts.
 
 - Restored saved menu placement after native repositioning, keeping quest rewards centered after Continue without refitting.
