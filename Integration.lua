@@ -5,6 +5,28 @@ local Data, UI = NS.Data, NS.UI
 local Integration = { interactions = {}, suppress = false }
 NS.Integration = Integration
 
+-- Keep native editing surfaces and menus free of fullscreen presentation.
+function Integration:IsEditModeActive()
+    return EditModeManagerFrame and EditModeManagerFrame:IsEditModeActive() or false
+end
+
+function Integration:SuspendForEditMode()
+    UI:HideNativeChrome()
+    UI.menuSessionActive = nil
+    NS.Menus.sessionTabs = nil
+    for panel in pairs(NS.Menus.opening or {}) do NS.Menus:RevealOpening(panel) end
+    self.native = false
+    self.nativeFocusedPanel = nil
+    self:EndUIIsolation()
+end
+
+function Integration:InstallEditModeHooks()
+    if self.editModeHooksInstalled then return end
+    self.editModeHooksInstalled = true
+    EventRegistry:RegisterCallback("EditMode.Enter", self.SuspendForEditMode, self)
+    if self:IsEditModeActive() then self:SuspendForEditMode() end
+end
+
 -- Enter native Lua handlers directly, preserving their own execution context on Forever.
 -- This does not grant addon callbacks permission to call restricted APIs.
 function Integration:CallNative(handler, ...)
@@ -346,7 +368,7 @@ end
 
 -- UI isolation hides unrelated top-level UI while preserving native input infrastructure.
 function Integration:BeginUIIsolation(...)
-    if self.hiddenUIFrames then return end
+    if self:IsEditModeActive() or self.hiddenUIFrames then return end
     self:HideWorldNames()
     self.hiddenUIFrames = {}
     self.hiddenUIFrameSet = setmetatable({}, { __mode = "k" })
@@ -467,7 +489,7 @@ function Integration:ConstrainMode(mode)
 end
 
 function Integration:IsNativeContext()
-    if InCombatLockdown() or self.native then return true end
+    if self:IsEditModeActive() or InCombatLockdown() or self.native then return true end
     for kind in pairs(self.interactions) do
         if kind ~= "MERCHANT_SHOW" and kind ~= "TRADE_SHOW"
             and kind ~= Enum.PlayerInteractionType.Merchant
@@ -528,6 +550,7 @@ function Integration:AreNativeBagsShown()
 end
 
 function Integration:Open(tab)
+    if self:IsEditModeActive() then return end
     if self:IsNativeContext() and not (Data.bankOpen and not InCombatLockdown() and not self.native) then return end
     tab = self:ConstrainMode(tab)
 
@@ -538,6 +561,7 @@ function Integration:Open(tab)
 end
 
 function Integration:OpenTalents(tabID)
+    if self:IsEditModeActive() then return end
     if self:HasInteraction() then return self:Open("inventory") end
     if InCombatLockdown() then return end
 
@@ -591,6 +615,7 @@ function Integration:Toggle()
 end
 
 function Integration:OpenMap()
+    if self:IsEditModeActive() then return end
     if InCombatLockdown() then return end
     if self:HasInteraction() then return self:Open("inventory") end
 
@@ -605,6 +630,7 @@ function Integration:OpenMap()
 end
 
 function Integration:OpenNative(tab, mode)
+    if self:IsEditModeActive() then return end
     if InCombatLockdown() then return end
     tab = self:ConstrainMode(tab)
 
@@ -686,7 +712,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
         callbacks = {}
         self.nativePanelHooks[panel] = callbacks
         panel:HookScript("OnShow", function(shownPanel)
-            if callbacks.onShow then callbacks.onShow(shownPanel) end
+            if callbacks.onShow and not self:IsEditModeActive() then callbacks.onShow(shownPanel) end
         end)
         panel:HookScript("OnHide", function(hiddenPanel)
             if callbacks.onHide then callbacks.onHide(hiddenPanel) end
@@ -694,7 +720,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
     end
     callbacks.onShow = onShow
     callbacks.onHide = onHide
-    if panel:IsShown() and onShow and UI.nativeChrome then onShow(panel) end
+    if panel:IsShown() and onShow and UI.nativeChrome and not self:IsEditModeActive() then onShow(panel) end
     return true
 end
 
@@ -754,6 +780,7 @@ end
 
 -- Adopt native visibility after its handlers finish; never replay the bag shortcut.
 function Integration:PresentNativeInventory()
+    if self:IsEditModeActive() then return end
     if not self.ready or InCombatLockdown() or self.suppress then return end
     local panel = self:GetInteractionPanel()
     -- Bags opened by unsupported services must keep their native context.
@@ -777,6 +804,7 @@ function Integration:PresentNativeInventory()
 end
 
 function Integration:QueueNativeInventory()
+    if self:IsEditModeActive() then return end
     if not self.ready or self.suppress or InCombatLockdown() or self.nativeInventoryPending then return end
     self.nativeInventoryPending = true
     C_Timer.After(0, function()
@@ -946,6 +974,7 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
         Integration:RestoreWorldNames()
     elseif event == "PLAYER_LOGIN" then
         UI:Initialize()
+        Integration:InstallEditModeHooks()
         Integration:ConfigureBagOwner()
         Integration:InstallHooks()
         Integration:InstallNativeGamepadHooks()

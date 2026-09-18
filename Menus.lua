@@ -12,7 +12,7 @@ end
 -- Loot pickup and its child panels retain their native popup presentation.
 function Menus:IsExcluded(panel)
     while self:IsAccessible(panel) do
-        if panel == LootFrame then return true end
+        if panel == LootFrame or panel == EditModeManagerFrame then return true end
         panel = panel:GetParent()
     end
     return false
@@ -119,7 +119,7 @@ end
 function Menus:Open(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel)
         or not panel:IsVisible() then return end
     -- A fading-out snapshot can remain visible until its short transition finishes.
@@ -153,7 +153,7 @@ end
 function Menus:QueueOpen(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel) or not panel:IsVisible()
         or integration.hiddenUIFrameSet and integration.hiddenUIFrameSet[panel] then return end
     if ui.genericMenu == panel and ui.nativeChrome and ui.nativeChrome:IsShown() then

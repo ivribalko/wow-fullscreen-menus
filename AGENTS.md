@@ -41,6 +41,8 @@ The native alias opens the same inventory view:
 
 ## Appearance
 
+Fullscreen presentation is suspended during native Edit Mode. Entering Edit Mode restores menu and bag placement and the surrounding UI; menus use fullscreen presentation again when opened after leaving Edit Mode.
+
 Menu layout is measured once when a menu type opens. Content, prompt visibility, panel dimensions, and UI size changes do not trigger refitting while that menu remains open. Switching menu types or closing and reopening allows fresh fitting. Quest lists, quest details, and quest rewards share the opening conversation’s scale and top-left position until the conversation closes. Native repositioning restores the saved placement without refitting.
 
 Native panels and their visible selectors scale proportionally and center in the full UI safe area. Menu and bag enlargement is capped at 1.5×; smaller available areas still reduce the scale to fit. Forever scaling includes visible native gamepad legends below menus, keeping bottom-left prompts inside the safe area. Separate bags fit into a uniformly scaled grid in descending bag ID order, with the backpack last. Combined bags keep their native item arrangement and fit as one panel.

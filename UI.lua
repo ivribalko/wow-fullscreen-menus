@@ -441,7 +441,7 @@ local function applyPanelPlacement(panel, scale, point, area, x, y)
 end
 
 function UI:LayoutNativePanel()
-    if InCombatLockdown() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
+    if NS.Integration:IsEditModeActive() or InCombatLockdown() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
     if not self.nativeChrome or not self.nativeChrome:IsShown() then return end
     self:UpdateNativePanelArea()
     local panel = self:GetNativePanel()
@@ -627,7 +627,7 @@ function UI:ResizeNativeChrome()
 end
 
 function UI:ShowNativeChrome(nativeTab, mode)
-    if InCombatLockdown() then return end
+    if NS.Integration:IsEditModeActive() or InCombatLockdown() then return end
     local switching = self.menuSessionActive
     if switching then self:RestoreMenuFades() end
     if mode ~= "generic" and self.genericMenu then

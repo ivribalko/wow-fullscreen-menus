@@ -108,7 +108,7 @@ function Bags:Restore()
 end
 
 function Bags:Layout()
-    if InCombatLockdown() or self.updating then return end
+    if NS.Integration:IsEditModeActive() or InCombatLockdown() or self.updating then return end
     self:UpdatePane()
     if not self:IsActive() then self:Restore(); return end
     if self.layoutApplied then return end

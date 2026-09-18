@@ -20,6 +20,8 @@
 
 ## State and lifecycle
 
+- Native `EditMode.Enter` restores presentation and UI isolation without dismissing native menus. The native edit-mode state gates discovery, queued presentation, isolation, and fitting until editing ends; the manager and its descendants are excluded from menu discovery.
+
 - Opening a menu captures unrelated visible UI, preserves native panels and item-action dialogs, and presents shared chrome. Isolation fades and content fades retain separate original opacity snapshots.
 - Switching menus restores the previous panel geometry and keeps the presentation session alive. Gossip and quest frames share a conversation placement snapshot in UI, preserving effective scale and the top-left corner across handoffs; closing chrome clears the snapshot. Switching service and Inventory tabs changes alpha and mouse input while the native interaction stays open.
 - Native panel fitting measures the combined panel and visible native-tab artwork bounds before scaling and centering. On Forever it also measures visible descendant input legends and their prompt containers, including nested footer owners, without invoking any native binding refresh methods. Panel and separate-bag layout runs once per presentation, with no size or anchor hooks. Repeated refreshes restore cached scale and anchors if native handlers move a panel, without remeasuring content or dimensions. Changing menu types or restoring the presentation permits fresh fitting. Safe-area anchors are installed once. The non-maximized map reserves the height of all native focus footers, including hidden variants, in its initial bounds. Periodic discovery catches late registrations and map-addon selectors.

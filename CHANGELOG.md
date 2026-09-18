@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Suspended fullscreen menu presentation during native Edit Mode and restored menu placement and surrounding UI when editing starts.
+
 - Restored saved menu placement after native repositioning, keeping quest rewards centered after Continue without refitting.
 
 - Reserved space for the map's gamepad footers at opening, including hidden focus variants, to keep bottom prompts inside the safe area without later refitting.
