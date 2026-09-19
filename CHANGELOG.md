@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added occasional contextual emotes to NPC and player models when interaction menus open or change, with a cooldown and automatic return to standing.
+
 - Added native animated NPC and player copies in fixed left/right positions behind conversation and service menus, independent of Voiceover.
 
 - Routed mailbox and inventory through shared service panes, preserving native focus during inbox loading and controller navigation and clearing the backdrop on mail dismissal.

@@ -11,13 +11,39 @@ local opens = {
     QUEST_PROGRESS = true, QUEST_COMPLETE = true, TRAINER_SHOW = true, MERCHANT_SHOW = true,
 }
 
+-- Native model animation IDs, not chat emotes; only the displayed copies act.
+local talk, question, bow, wave, nod = 60, 65, 66, 67, 185
+local emotes = {
+    greeting = { npc = { wave, talk }, player = { wave, nod } },
+    QUEST_DETAIL = { npc = { talk }, player = { question, nod } },
+    QUEST_PROGRESS = { npc = { question, talk }, player = { talk, nod } },
+    QUEST_COMPLETE = { npc = { nod, talk }, player = { bow, nod } },
+    TRAINER_SHOW = { npc = { talk }, player = { question, nod } },
+    MERCHANT_SHOW = { npc = { talk }, player = { question, nod } },
+    conversation = { npc = { talk, question }, player = { talk, nod } },
+}
+local emoteChance, emoteCooldown, emoteTimeout = 0.35, 3, 3
+
+local function stand(model)
+    model.emoteUntil = nil
+    model:SetAnimation(0)
+end
+
+local function tryEmote(model, choices, now)
+    if not model.guid or (model.nextEmote and now < model.nextEmote) then return end
+    model.nextEmote = now + emoteCooldown
+    if math.random() >= emoteChance then return end
+    model.emoteUntil = now + emoteTimeout
+    local ok, success = pcall(model.SetAnimation, model, choices[math.random(#choices)])
+    if not ok or success == false then stand(model) end
+end
+
 local function configure(model)
     model:SetPortraitZoom(0)
     model:SetCamDistanceScale(1.1)
     model:SetPosition(0, 0, 0)
     model:SetFacing(model.facing)
-    -- Use the model's own standing animation; world emote state is not exposed.
-    model:SetAnimation(0)
+    stand(model)
 end
 
 local function createModel(parent, facing)
@@ -26,6 +52,9 @@ local function createModel(parent, facing)
     model:EnableMouse(false)
     model:SetKeepModelOnHide(true)
     model:SetScript("OnModelLoaded", configure)
+    model:SetScript("OnAnimFinished", function(self)
+        if self.emoteUntil then stand(self) end
+    end)
     model:Hide()
     return model
 end
@@ -33,6 +62,7 @@ end
 function Models:Hide()
     self.generation = self.generation + 1
     self.active, self.npcGUID, self.missingSince = nil, nil, nil
+    self.pendingEmote, self.emoteContext, self.emoteEvent = nil, nil, nil
     driver:SetScript("OnUpdate", nil)
     if self.root then
         self.root:Hide()
@@ -40,6 +70,7 @@ function Models:Hide()
             model:Hide()
             model:ClearModel()
             model.guid = nil
+            model.emoteUntil, model.nextEmote = nil, nil
         end
     end
 end
@@ -111,10 +142,27 @@ function Models:Update()
     end
     self.npcGUID = guid or self.npcGUID
     if guid then bind(self.npc, "npc", guid) end
+    local now = GetTime()
+    for _, model in ipairs({ self.npc, self.player }) do
+        -- Some models omit the completion callback or loop an emote indefinitely.
+        if model.emoteUntil and now >= model.emoteUntil then stand(model) end
+    end
+    local context = table.concat({ panel:GetName(), NS.UI.nativeChromeMode or "",
+        tostring(panel.selectedTab or ""), tostring(NS.NativeBags.inventorySelected or false) }, ":")
+    if self.pendingEmote or self.emoteContext ~= context then
+        local opening = not self.emoteContext
+        self.emoteContext = context
+        local event = self.pendingEmote and self.emoteEvent
+        self.pendingEmote = nil
+        local choices = emotes[event] or (opening and emotes.greeting) or emotes.conversation
+        tryEmote(self.npc, choices.npc, now)
+        tryEmote(self.player, choices.player, now)
+    end
 end
 
-function Models:Open()
+function Models:Open(event)
     self.active = true
+    self.pendingEmote, self.emoteEvent = true, event
     self.generation = self.generation + 1
     self.missingSince = nil
     local generation = self.generation
@@ -135,7 +183,7 @@ end
 
 driver:SetScript("OnEvent", function(_, event, unit)
     if opens[event] then
-        Models:Open()
+        Models:Open(event)
     elseif event == "PLAYER_LEAVING_WORLD" or event == "PLAYER_DEAD" then
         Models:Hide()
     elseif Models.active then
