@@ -61,9 +61,13 @@ local function tryEmote(model, choices, now)
 end
 
 local function configure(model)
-    model:SetPortraitZoom(0)
-    model:SetCamDistanceScale(1.1)
+    -- Native portrait cameras fit each creature independently. Equal viewports
+    -- need the same model-space camera to preserve relative character sizes.
+    model:SetModelScale(Layout.modelScale)
     model:SetPosition(0, 0, 0)
+    model:SetCustomCamera(1)
+    model:SetCameraPosition(Layout.modelCameraDistance, 0, Layout.modelCameraHeight)
+    model:SetCameraTarget(0, 0, Layout.modelCameraHeight)
     model:SetFacing(model.facing)
     stand(model)
 end

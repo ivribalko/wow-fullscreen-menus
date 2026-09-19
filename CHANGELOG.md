@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Used a shared model scale and fixed camera for both conversation models, preserving relative sizes across appearances and menu switches.
+
 - Added horizontal right-stick rotation of the conversation NPC model.
 
 - Added occasional contextual emotes to NPC and player models when interaction menus open or change, with a cooldown and automatic return to standing.
