@@ -117,10 +117,17 @@ function Integration:ObserveNativeGamepadFocus(manager)
         local previous = self.nativeFocusedPanel or UI:GetNativePanel()
         local entry = NS.Menus:GetCurrentEntry()
         if active ~= previous then
+            -- Unsupported interactions reject inventory presentation. Do not reveal
+            -- their bags or conceal the current menu unless that handoff succeeds.
+            if active == ContainerFrameCombinedBags then
+                if not self:PresentNativeInventory() then return end
+            else
+                self:ReleaseUIIsolationFrame(active)
+                bags:Reveal(active)
+            end
             NS.Menus:RetainCurrent(entry)
-            self:ReleaseUIIsolationFrame(active)
-            bags:Reveal(active)
-            if active == ContainerFrameCombinedBags then self:PresentNativeInventory()
+            if active == ContainerFrameCombinedBags then
+                bags:Reveal(active)
             elseif active == CharacterFrame then UI:ShowNativeChrome(CharacterFrame.activeSubframe, "character")
             elseif active == PlayerSpellsFrame then UI:ShowNativeChrome(active:GetTab(), "talents")
             elseif active == WorldMapFrame then UI:ShowNativeChrome("map")
@@ -253,6 +260,8 @@ local services = {
         panel = "MerchantFrame", close = CloseMerchant },
     trade = { event = "TRADE_SHOW", interaction = Enum.PlayerInteractionType.TradePartner,
         panel = "TradeFrame" },
+    mail = { event = "MAIL_SHOW", interaction = Enum.PlayerInteractionType.MailInfo,
+        panel = "MailFrame", close = CloseMail },
 }
 
 -- Either native event can dismiss a service; reentrant cleanup shares one guard.
@@ -266,8 +275,9 @@ function Integration:ServiceClosed(mode)
     local suppressed = self.suppress
     self.suppress = true
     -- Forever's merchant OnHide closes its bags in native execution context.
+    -- MailFrame_Hide also owns bag closure after dismissing the mailbox.
     -- Repeating it from the close event can run gamepad focus teardown in addon context.
-    if CloseAllBags and mode ~= "merchant" then
+    if CloseAllBags and mode ~= "merchant" and mode ~= "mail" then
         self:CallNative(CloseAllBags)
     end
     self.suppress = suppressed
@@ -317,11 +327,12 @@ function Integration:QueueBankOpen()
     end)
 end
 
--- Bank, merchant, and trade retain their native panels beside native bags.
+-- Services retain their native panels beside native bags.
 function Integration:GetInteractionPanel()
     if Data.bankOpen and BankFrame and BankFrame:IsShown() then return BankFrame end
     if self.interactions.MERCHANT_SHOW and MerchantFrame and MerchantFrame:IsShown() then return MerchantFrame end
     if self.interactions.TRADE_SHOW and TradeFrame and TradeFrame:IsShown() then return TradeFrame end
+    if MailFrame and MailFrame:IsShown() then return MailFrame end
 end
 
 function Integration:QueueInteractionOpen()
@@ -522,6 +533,7 @@ function Integration:GetInteractionMode()
     if Data.bankOpen then return "bank" end
     if self.interactions.MERCHANT_SHOW then return "merchant" end
     if self.interactions.TRADE_SHOW then return "trade" end
+    if self.interactions.MAIL_SHOW then return "mail" end
 end
 
 function Integration:HasInteraction()
@@ -557,6 +569,7 @@ function Integration:Close(keepUIIsolated)
         self:CloseBankInteraction()
         self:CloseServiceInteraction("merchant")
         self:CloseServiceInteraction("trade")
+        self:CloseServiceInteraction("mail")
         self:EndUIIsolation()
     end
 end
@@ -808,6 +821,7 @@ function Integration:CloseNative(keepUIIsolated)
         self:CloseBankInteraction()
         self:CloseServiceInteraction("merchant")
         self:CloseServiceInteraction("trade")
+        self:CloseServiceInteraction("mail")
     end
     local genericMenu = UI.genericMenu
     if genericMenu and not InCombatLockdown() then self:CallNative(HideUIPanel, genericMenu) end
@@ -838,10 +852,6 @@ function Integration:PresentNativeInventory()
         self.nativeFocusedPanel = CharacterFrame
         return
     end
-    -- Bags opened by unsupported services must keep their native context.
-    if not panel and self:HasInteraction() then return end
-    if not panel and ((MailFrame and MailFrame:IsShown())
-        or (AuctionHouseFrame and AuctionHouseFrame:IsShown())) then return end
     if not panel and not self:AreNativeBagsShown() then
         if UI.nativeChromeMode == "inventory" then
             self.native = false
@@ -850,12 +860,17 @@ function Integration:PresentNativeInventory()
         end
         return
     end
+    -- Bags opened by unsupported services must keep their native context.
+    if not panel and self:HasInteraction() then return end
+    if not panel and ((MailFrame and MailFrame:IsShown())
+        or (AuctionHouseFrame and AuctionHouseFrame:IsShown())) then return end
     local preserved = self:GetNativeBagFrames()
     if panel then preserved[#preserved + 1] = panel end
     for _, frame in ipairs(preserved) do self:ReleaseUIIsolationFrame(frame) end
     self:BeginUIIsolation(unpack(preserved))
     self.native = true
     UI:ShowNativeChrome("inventory")
+    return true
 end
 
 function Integration:QueueNativeInventory()
@@ -1071,6 +1086,11 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
             Integration:QueueBankOpen()
             return
         end
+        if argument == Enum.PlayerInteractionType.MailInfo then
+            Integration.interactions.MAIL_SHOW = true
+            Integration:QueueInteractionOpen()
+            return
+        end
         if argument == Enum.PlayerInteractionType.Merchant or argument == Enum.PlayerInteractionType.TradePartner then
             Integration.interactions[argument == Enum.PlayerInteractionType.Merchant and "MERCHANT_SHOW" or "TRADE_SHOW"] = true
             Integration:QueueInteractionOpen()
@@ -1093,13 +1113,17 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
             Integration:ServiceClosed("trade")
             return
         end
+        if argument == Enum.PlayerInteractionType.MailInfo then
+            Integration:ServiceClosed("mail")
+            return
+        end
         Integration.interactions[argument] = nil
         UI:LayoutModeTabs()
     elseif interactionEvents[event] then
         local kind = interactionEvents[event]
         if kind == true then
             Integration.interactions[event] = true
-            if event == "MERCHANT_SHOW" or event == "TRADE_SHOW" then
+            if event == "MERCHANT_SHOW" or event == "TRADE_SHOW" or event == "MAIL_SHOW" then
                 Integration:QueueInteractionOpen()
                 return
             end
@@ -1113,6 +1137,10 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
             end
             if event == "TRADE_CLOSED" then
                 Integration:ServiceClosed("trade")
+                return
+            end
+            if event == "MAIL_CLOSED" then
+                Integration:ServiceClosed("mail")
                 return
             end
             Integration.interactions[kind] = nil

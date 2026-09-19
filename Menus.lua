@@ -24,7 +24,8 @@ function Menus:IsSpecialized(panel)
     local current = panel
     while current do
         if current == CharacterFrame or current == PlayerSpellsFrame or current == WorldMapFrame
-            or current == BankFrame or current == MerchantFrame or current == TradeFrame then return true end
+            or current == BankFrame or current == MerchantFrame or current == TradeFrame
+            or current == MailFrame then return true end
         for _, bag in ipairs(bags) do
             if current == bag then return true end
         end

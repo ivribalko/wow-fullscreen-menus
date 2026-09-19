@@ -40,6 +40,12 @@ function Bags:UpdatePane()
         for frame in pairs(self.concealed) do self:Reveal(frame) end
         self.interaction = panel
         self.inventorySelected = panel == nil
+        -- Mail loads its inbox before choosing initial native focus. Preserve
+        -- the currently focused bags until that native handoff completes.
+        local manager = GamepadMode and GamepadMode.FrameControlsManager
+        if panel and panel == MailFrame and InputUtil and InputUtil.IsGamepadUIEnabled() and manager then
+            self.inventorySelected = manager:GetActiveFrame() == ContainerFrameCombinedBags
+        end
         ui:LayoutModeTabs()
     end
     if not panel then return end
@@ -49,7 +55,7 @@ function Bags:UpdatePane()
             if self.inventorySelected then self:Reveal(frame) else self:Conceal(frame) end
         end
     end
-    if changed then NS.Integration:FocusNativePane(panel) end
+    if changed and panel ~= MailFrame then NS.Integration:FocusNativePane(panel) end
 end
 
 function Bags:SelectPane(inventory, fromNativeFocus)
