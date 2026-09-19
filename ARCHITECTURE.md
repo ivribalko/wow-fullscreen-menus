@@ -22,6 +22,8 @@
 
 - Native `EditMode.Enter` restores presentation and UI isolation without dismissing native menus. The native edit-mode state gates discovery, queued presentation, isolation, and fitting until editing ends; the manager and its descendants are excluded from menu discovery.
 
+- `GamepadActionBarEditFrame` overlays the existing fullscreen menu without restoring or refitting its geometry. Isolation preserves the editor, and discovery excludes it and its descendants. While it is visible, native focus observation leaves the underlying presentation unchanged and addon trigger overrides are cleared. A deferred hide callback restores menu shortcuts after native focus and visibility settle, including bind-to-edit transitions. Native action handlers and binding groups remain untouched.
+
 - Opening a menu captures unrelated visible UI, preserves native panels and item-action dialogs, and presents shared chrome. Isolation fades and content fades retain separate original opacity snapshots.
 - Switching menus restores the previous panel geometry and keeps the presentation session alive. Gossip and quest frames share a conversation placement snapshot in UI, preserving effective scale and the top-left corner across handoffs; closing chrome clears the snapshot. Switching service and Inventory tabs changes alpha and mouse input while the native interaction stays open.
 - Generic interaction events preserve an already visible generic presentation. Menu show hooks, interaction discovery, and periodic discovery coalesce a deferred check that adopts a visible registered menu when chrome is missing, including quest lists returning after completion. Active specialized presentations and isolated unrelated panels are excluded from recovery.

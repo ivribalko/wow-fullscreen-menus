@@ -5,9 +5,14 @@ local Data, UI = NS.Data, NS.UI
 local Integration = { interactions = {}, suppress = false }
 NS.Integration = Integration
 
--- Keep native editing surfaces and menus free of fullscreen presentation.
+-- Keep native layout editing free of fullscreen presentation.
 function Integration:IsEditModeActive()
     return EditModeManagerFrame and EditModeManagerFrame:IsEditModeActive() or false
+end
+
+-- Action binding overlays the current menu without changing its presentation.
+function Integration:IsActionBarEditing()
+    return GamepadActionBarEditFrame and GamepadActionBarEditFrame:IsShown() or false
 end
 
 function Integration:SuspendForEditMode()
@@ -25,6 +30,25 @@ function Integration:InstallEditModeHooks()
     self.editModeHooksInstalled = true
     EventRegistry:RegisterCallback("EditMode.Enter", self.SuspendForEditMode, self)
     if self:IsEditModeActive() then self:SuspendForEditMode() end
+end
+
+-- The spellbook's Bind and Edit Action Bar commands share this native editor.
+-- Observe visibility only; Blizzard owns its action changes and binding stack.
+function Integration:InstallActionBarEditHooks()
+    local editor = GamepadActionBarEditFrame
+    if not editor or self.actionBarEditFrame == editor then return end
+    self.actionBarEditFrame = editor
+    local function shown()
+        self:ReleaseUIIsolationFrame(editor)
+        UI:UpdateControllerBindings()
+    end
+    editor:HookScript("OnShow", shown)
+    editor:HookScript("OnHide", function()
+        -- Binding can switch to editing by hiding and showing in the same call.
+        -- Restore menu shortcuts only after native focus and visibility settle.
+        C_Timer.After(0, function() UI:UpdateControllerBindings() end)
+    end)
+    if editor:IsShown() then shown() end
 end
 
 -- Enter native Lua handlers directly, preserving their own execution context on Forever.
@@ -80,7 +104,7 @@ end
 
 -- Native bindings own visibility; follow their final focus using presentation only.
 function Integration:ObserveNativeGamepadFocus(manager)
-    if InCombatLockdown() or not UI.nativeChrome or not UI.nativeChrome:IsShown() then return end
+    if self:IsEditModeActive() or self:IsActionBarEditing() or InCombatLockdown() or not UI.nativeChrome or not UI.nativeChrome:IsShown() then return end
     local active = manager:GetActiveFrame()
     if not active or not active:IsShown() then return end
     local bags = NS.NativeBags
@@ -399,7 +423,8 @@ function Integration:BeginUIIsolation(...)
     if interactionPanel then preserved[interactionPanel] = true end
     -- Item menus, split dialogs, and native confirmations must remain actionable.
     for _, name in ipairs({ "GameTooltip", "StackSplitFrame",
-        "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4", "UIErrorsFrame" }) do
+        "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4", "UIErrorsFrame",
+        "GamepadActionBarEditFrame" }) do
         if _G[name] then preserved[_G[name]] = true end
     end
     if UI.nativeChrome then preserved[UI.nativeChrome] = true end
@@ -959,6 +984,7 @@ end
 
 local frame = CreateFrame("Frame")
 local loadOnDemandPanelInstallers = {
+    Blizzard_GamepadActionBars = function() Integration:InstallActionBarEditHooks() end,
     Blizzard_WorldMap = function() Integration:InstallMapHooks() end,
     Blizzard_PlayerSpells = function() Integration:InstallPlayerSpellsHooks() end,
 }
@@ -1005,6 +1031,7 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
     elseif event == "PLAYER_LOGIN" then
         UI:Initialize()
         Integration:InstallEditModeHooks()
+        Integration:InstallActionBarEditHooks()
         Integration:ConfigureBagOwner()
         Integration:InstallHooks()
         Integration:InstallNativeGamepadHooks()

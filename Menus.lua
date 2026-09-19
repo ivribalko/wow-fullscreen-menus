@@ -12,7 +12,7 @@ end
 -- Loot pickup and its child panels retain their native popup presentation.
 function Menus:IsExcluded(panel)
     while self:IsAccessible(panel) do
-        if panel == LootFrame or panel == EditModeManagerFrame then return true end
+        if panel == LootFrame or panel == EditModeManagerFrame or panel == GamepadActionBarEditFrame then return true end
         panel = panel:GetParent()
     end
     return false

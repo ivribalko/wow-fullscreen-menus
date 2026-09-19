@@ -251,7 +251,8 @@ end
 function UI:UpdateControllerBindings()
     local chrome = self.nativeChrome
     if not chrome or InCombatLockdown() then return end
-    local mode = chrome:IsShown() and self.nativeChromeMode or nil
+    local mode = not NS.Integration:IsEditModeActive() and not NS.Integration:IsActionBarEditing()
+        and chrome:IsShown() and self.nativeChromeMode or nil
     local state = mode or "hidden"
     local previous, following
     if mode then

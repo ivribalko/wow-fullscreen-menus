@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Supported native spellbook Bind and Edit Action Bar commands over the fullscreen spellbook, preserving menu placement and scale while leaving editor controls native.
+
 - Displayed only Character after selecting it from the gamepad wheel, preserving native trigger navigation to inventory.
 
 - Restored fullscreen presentation for visible menus after native interaction callbacks, including quest lists returning after quest completion.

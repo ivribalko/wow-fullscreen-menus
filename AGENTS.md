@@ -24,6 +24,7 @@ Open bags, Character, Player Spells, or the map with the usual game shortcuts. F
 
 - **Presentation:** No addon menu labels, tabs, pin controls, or debug buttons are displayed. Open menus with native shortcuts; existing controller routing remains available.
 - **Native selectors:** Use native mouse controls and gamepad navigation. Trade has no secondary selectors.
+- **Spellbook action bars:** Use the native Bind and Edit Action Bar commands. The spellbook keeps its fullscreen position and scale while the native action-bar editor is open. Native binding, moving, clearing, paging, and Back controls remain available; addon trigger shortcuts resume when the editor closes.
 - **Gamepad wheel:** Selecting Character displays Character alone. The accompanying native inventory stays concealed until trigger navigation selects it; R2 remains available to switch to inventory.
 - **Inventory and services:** Bank, merchant, and player-trade interactions use separate service and inventory views. Switching views preserves the interaction and trade offer. On Forever beta, the visible view follows native gamepad focus, and selecting a view focuses its registered native panel. Each view uses the full available content area.
 - **Closing:** Press Escape, native Circle/Back on Forever beta. Closing ends active bank, merchant, or trade interactions. Merchant and trade dismissal also closes inventory bags and the backdrop.
