@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added native animated NPC and player copies in fixed left/right positions behind conversation and service menus, independent of Voiceover.
+
 - Routed mailbox and inventory through shared service panes, preserving native focus during inbox loading and controller navigation and clearing the backdrop on mail dismissal.
 
 - Supported native spellbook Bind and Edit Action Bar commands over the fullscreen spellbook, preserving menu placement and scale while leaving editor controls native.

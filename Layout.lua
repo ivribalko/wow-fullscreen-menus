@@ -3,6 +3,10 @@ local _, NS = ...
 -- Layout centralizes shared presentation dimensions and timing.
 NS.Layout = {
     edgeMargin = 14,
+    modelSideInset = 0.02,
+    modelBottomInset = 0.08,
+    modelWidth = 0.28,
+    modelHeight = 0.76,
     topPadding = 8,
     maxScale = 1.5,
     rowGap = 6,
