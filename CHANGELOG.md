@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added horizontal right-stick rotation of the conversation NPC model.
+
 - Added occasional contextual emotes to NPC and player models when interaction menus open or change, with a cooldown and automatic return to standing.
 
 - Added native animated NPC and player copies in fixed left/right positions behind conversation and service menus, independent of Voiceover.

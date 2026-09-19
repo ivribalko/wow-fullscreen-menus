@@ -23,6 +23,28 @@ local emotes = {
     conversation = { npc = { talk, question }, player = { talk, nod } },
 }
 local emoteChance, emoteCooldown, emoteTimeout = 0.35, 3, 3
+local rotationDeadzone, rotationSpeed = 0.15, math.pi
+
+-- Read the mapped camera stick without taking ownership of native input bindings.
+function Models:RotateNPC(delta)
+    local model = self.npc
+    if not self.active or not model or not model.guid or not model:IsVisible()
+        or not C_GamePad or not C_GamePad.GetDeviceMappedState
+        or not C_GamePad.StickIndexToConfigName then return end
+    local state = C_GamePad.GetDeviceMappedState()
+    if not state then return end
+    for index, stick in ipairs(state.sticks) do
+        if C_GamePad.StickIndexToConfigName(index - 1) == "Camera" then
+            local amount = math.abs(stick.x)
+            if amount <= rotationDeadzone then return end
+            local direction = stick.x < 0 and -1 or 1
+            model.facing = (model.facing + direction * (amount - rotationDeadzone)
+                / (1 - rotationDeadzone) * rotationSpeed * math.min(delta, 0.1)) % (2 * math.pi)
+            model:SetFacing(model.facing)
+            return
+        end
+    end
+end
 
 local function stand(model)
     model.emoteUntil = nil
@@ -49,6 +71,7 @@ end
 local function createModel(parent, facing)
     local model = CreateFrame("PlayerModel", nil, parent)
     model.facing = facing
+    model.defaultFacing = facing
     model:EnableMouse(false)
     model:SetKeepModelOnHide(true)
     model:SetScript("OnModelLoaded", configure)
@@ -70,6 +93,7 @@ function Models:Hide()
             model:Hide()
             model:ClearModel()
             model.guid = nil
+            model.facing = model.defaultFacing
             model.emoteUntil, model.nextEmote = nil, nil
         end
     end
@@ -139,6 +163,7 @@ function Models:Update()
     if guid and self.npcGUID and guid ~= self.npcGUID then
         self.npc:ClearModel()
         self.npc.guid = nil
+        self.npc.facing = self.npc.defaultFacing
     end
     self.npcGUID = guid or self.npcGUID
     if guid then bind(self.npc, "npc", guid) end
@@ -173,6 +198,7 @@ function Models:Open(event)
         if not self.active then return end
         local elapsed = 0
         driver:SetScript("OnUpdate", function(_, delta)
+            self:RotateNPC(delta)
             elapsed = elapsed + delta
             if elapsed < 0.1 then return end
             elapsed = 0
