@@ -10,6 +10,7 @@ NS.Layout = {
     modelScale = 1,
     modelCameraDistance = 5.5,
     modelCameraHeight = 1.4,
+    modelCameraFieldOfView = math.rad(40),
     topPadding = 8,
     maxScale = 1.5,
     rowGap = 6,

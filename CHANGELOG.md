@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Used a shared model scale and fixed camera for both conversation models, preserving relative sizes across appearances and menu switches.
+- Centered the shared model camera on combined top and bottom bounds and accounted for offset origins when fitting, correcting the fixed-height clearance calculation.
+
+- Retained native PlayerModel appearances, facing, lighting, and animation while using invisible model-file helpers for bounds-based shared zoom estimates.
+
+- Kept visible models available when measurements are pending and guarded custom-camera writes until loading completes.
 
 - Added horizontal right-stick rotation of the conversation NPC model.
 

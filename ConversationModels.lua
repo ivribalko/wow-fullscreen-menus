@@ -60,14 +60,93 @@ local function tryEmote(model, choices, now)
     if not ok or success == false then stand(model) end
 end
 
-local function configure(model)
-    -- Native portrait cameras fit each creature independently. Equal viewports
-    -- need the same model-space camera to preserve relative character sizes.
+-- An invisible actor measures the same model file displayed by PlayerModel.
+-- It never supplies appearance, lighting, orientation, or animation to the view.
+local function measure(model)
+    local file = model:GetModelFileID()
+    if not file or file == 0 then return end
+    local actor = model.measureActor
+    if model.measureFile ~= file then
+        model.bounds = nil
+        actor:ClearModel()
+        if actor:SetModelByFileID(file) == false then return end
+        actor:SetScale(1)
+        actor:SetAnimation(0)
+        model.measureFile = file
+    end
+    if model.bounds or not actor:IsLoaded() or actor:GetModelFileID() ~= file then return end
+    local x0, y0, z0, x1, y1, z1 = actor:GetActiveBoundingBox()
+    if type(x0) == "table" and x0.GetXYZ and type(y0) == "table" and y0.GetXYZ then
+        local bottom, top = x0, y0
+        x0, y0, z0 = bottom:GetXYZ()
+        x1, y1, z1 = top:GetXYZ()
+    end
+    local function finite(value)
+        return type(value) == "number" and value == value and math.abs(value) < math.huge
+    end
+    if not (finite(x0) and finite(y0) and finite(z0)
+        and finite(x1) and finite(y1) and finite(z1)) then return end
+    if x1 <= x0 or y1 <= y0 or z1 <= z0 then return end
+    model.bounds = {
+        bottom = z0 * Layout.modelScale,
+        top = z1 * Layout.modelScale,
+        -- Measure from the actual origin, not an assumed centered base mesh.
+        radius = math.sqrt(math.max(math.abs(x0), math.abs(x1))^2
+            + math.max(math.abs(y0), math.abs(y1))^2) * Layout.modelScale,
+    }
+end
+
+local function applyCamera(model, distance, cameraHeight)
+    local file = model:GetModelFileID()
+    if not file or file == 0 then return false end
     model:SetModelScale(Layout.modelScale)
     model:SetPosition(0, 0, 0)
     model:SetCustomCamera(1)
-    model:SetCameraPosition(Layout.modelCameraDistance, 0, Layout.modelCameraHeight)
-    model:SetCameraTarget(0, 0, Layout.modelCameraHeight)
+    if not model:HasCustomCamera() then return false end
+    model:SetCameraPosition(distance, 0, cameraHeight)
+    model:SetCameraTarget(0, 0, cameraHeight)
+    model.cameraDistance = distance
+    model.cameraHeight = cameraHeight
+    return true
+end
+
+function Models:FitPair()
+    local player, npc = self.player, self.npc
+    if not player or not npc then return end
+    measure(player)
+    measure(npc)
+    local distance = Layout.modelCameraDistance
+    local cameraHeight = Layout.modelCameraHeight
+    if player.bounds and npc.bounds then
+        local bottom = math.min(player.bounds.bottom, npc.bounds.bottom)
+        local top = math.max(player.bounds.top, npc.bounds.top)
+        cameraHeight = (bottom + top) / 2
+        distance = 0
+        for _, model in ipairs({ player, npc }) do
+            local width, height = model:GetWidth(), model:GetHeight()
+            if width <= 2 * Layout.edgeMargin or height <= 2 * Layout.edgeMargin then return end
+            -- PlayerModel does not expose its projection field of view. This
+            -- nominal angle estimates fitting from real base-mesh dimensions.
+            local vertical = math.tan(Layout.modelCameraFieldOfView / 2)
+            local horizontal = vertical * width / height
+            vertical = vertical * (1 - 2 * Layout.edgeMargin / height)
+            horizontal = horizontal * (1 - 2 * Layout.edgeMargin / width)
+            local bounds = model.bounds
+            local verticalExtent = math.max(cameraHeight - bounds.bottom, bounds.top - cameraHeight)
+            distance = math.max(distance, bounds.radius
+                + math.max(bounds.radius / horizontal, verticalExtent / vertical))
+        end
+    end
+    for _, model in ipairs({ player, npc }) do
+        if model.cameraDistance ~= distance or model.cameraHeight ~= cameraHeight then
+            applyCamera(model, distance, cameraHeight)
+        end
+    end
+end
+
+local function configure(model)
+    model.cameraDistance = nil
+    if not applyCamera(model, Layout.modelCameraDistance, Layout.modelCameraHeight) then return end
     model:SetFacing(model.facing)
     stand(model)
 end
@@ -78,6 +157,13 @@ local function createModel(parent, facing)
     model.defaultFacing = facing
     model:EnableMouse(false)
     model:SetKeepModelOnHide(true)
+    model.measureScene = CreateFrame("ModelScene", nil, model)
+    model.measureScene:SetSize(1, 1)
+    model.measureScene:SetPoint("CENTER", model, "CENTER")
+    model.measureScene:EnableMouse(false)
+    model.measureScene:SetAlpha(0)
+    model.measureActor = model.measureScene:CreateActor()
+    model.measureActor:Show()
     model:SetScript("OnModelLoaded", configure)
     model:SetScript("OnAnimFinished", function(self)
         if self.emoteUntil then stand(self) end
@@ -96,6 +182,8 @@ function Models:Hide()
         for _, model in ipairs({ self.player, self.npc }) do
             model:Hide()
             model:ClearModel()
+            model.measureActor:ClearModel()
+            model.bounds, model.measureFile, model.cameraDistance = nil, nil, nil
             model.guid = nil
             model.facing = model.defaultFacing
             model.emoteUntil, model.nextEmote = nil, nil
@@ -106,6 +194,7 @@ end
 local function bind(model, unit, guid)
     if not guid or not UnitExists(unit) then return end
     if model.guid == guid then return end
+    model.bounds, model.measureFile, model.cameraDistance = nil, nil, nil
     local ok, success = pcall(model.SetUnit, model, unit)
     if ok and success ~= false then
         model.guid = guid
@@ -166,6 +255,8 @@ function Models:Update()
     local guid = UnitGUID("npc")
     if guid and self.npcGUID and guid ~= self.npcGUID then
         self.npc:ClearModel()
+        self.npc.measureActor:ClearModel()
+        self.npc.bounds, self.npc.measureFile = nil, nil
         self.npc.guid = nil
         self.npc.facing = self.npc.defaultFacing
     end
@@ -176,6 +267,7 @@ function Models:Update()
         -- Some models omit the completion callback or loop an emote indefinitely.
         if model.emoteUntil and now >= model.emoteUntil then stand(model) end
     end
+    self:FitPair()
     local context = table.concat({ panel:GetName(), NS.UI.nativeChromeMode or "",
         tostring(panel.selectedTab or ""), tostring(NS.NativeBags.inventorySelected or false) }, ":")
     if self.pendingEmote or self.emoteContext ~= context then
