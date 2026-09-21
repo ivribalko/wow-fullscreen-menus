@@ -2,13 +2,10 @@
 
 ## Unreleased
 
-- Fitted conversation bounds at the opening facing, keeping shared zoom fixed during rotation and allowing some edge clipping.
+- Used native screen projection to fit and place both actors within their visible regions, correcting off-screen placement.
+- Placed conversation models in one native scene with a shared camera and collision-bound ground plane; fit opening poses without changing zoom during rotation.
 
-- Centered the shared model camera on combined top and bottom bounds and accounted for offset origins when fitting, correcting the fixed-height clearance calculation.
-
-- Retained native PlayerModel appearances, facing, lighting, and animation while using invisible model-file helpers for bounds-based shared zoom estimates.
-
-- Kept visible models available when measurements are pending and guarded custom-camera writes until loading completes.
+- Used native camera orientation and NPC creature-display loading, with polled actor readiness and bounded projection diagnostics.
 
 - Added horizontal right-stick rotation of the conversation NPC model.
 

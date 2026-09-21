@@ -40,7 +40,7 @@ function Models:RotateNPC(delta)
             local direction = stick.x < 0 and -1 or 1
             model.facing = (model.facing + direction * (amount - rotationDeadzone)
                 / (1 - rotationDeadzone) * rotationSpeed * math.min(delta, 0.1)) % (2 * math.pi)
-            model:SetFacing(model.facing)
+            self:PositionModels()
             return
         end
     end
@@ -52,7 +52,7 @@ local function stand(model)
 end
 
 local function tryEmote(model, choices, now)
-    if not model.guid or (model.nextEmote and now < model.nextEmote) then return end
+    if not model.guid or not model.bounds or (model.nextEmote and now < model.nextEmote) then return end
     model.nextEmote = now + emoteCooldown
     if math.random() >= emoteChance then return end
     model.emoteUntil = now + emoteTimeout
@@ -60,122 +60,192 @@ local function tryEmote(model, choices, now)
     if not ok or success == false then stand(model) end
 end
 
--- An invisible actor measures the same model file displayed by PlayerModel.
--- It never supplies appearance, lighting, orientation, or animation to the view.
-local function measure(model)
-    local file = model:GetModelFileID()
-    if not file or file == 0 then return end
-    local actor = model.measureActor
-    if model.measureFile ~= file then
-        model.bounds = nil
-        actor:ClearModel()
-        if actor:SetModelByFileID(file) == false then return end
-        actor:SetScale(1)
-        actor:SetAnimation(0)
-        model.measureFile = file
-    end
-    if model.bounds or not actor:IsLoaded() or actor:GetModelFileID() ~= file then return end
+local function finite(value)
+    return type(value) == "number" and value == value and math.abs(value) < math.huge
+end
+
+-- Read the native geometry bounds once; animation never refits the camera.
+local function readBounds(actor)
     local x0, y0, z0, x1, y1, z1 = actor:GetActiveBoundingBox()
     if type(x0) == "table" and x0.GetXYZ and type(y0) == "table" and y0.GetXYZ then
         local bottom, top = x0, y0
         x0, y0, z0 = bottom:GetXYZ()
         x1, y1, z1 = top:GetXYZ()
     end
-    local function finite(value)
-        return type(value) == "number" and value == value and math.abs(value) < math.huge
-    end
     if not (finite(x0) and finite(y0) and finite(z0)
         and finite(x1) and finite(y1) and finite(z1)) then return end
     if x1 <= x0 or y1 <= y0 or z1 <= z0 then return end
-    model.bounds = {
-        bottom = z0 * Layout.modelScale,
-        top = z1 * Layout.modelScale,
-        minX = x0 * Layout.modelScale, maxX = x1 * Layout.modelScale,
-        minY = y0 * Layout.modelScale, maxY = y1 * Layout.modelScale,
-    }
+    local scale = actor:GetScale()
+    return { minX = x0 * scale, maxX = x1 * scale,
+        minY = y0 * scale, maxY = y1 * scale,
+        bottom = z0 * scale, top = z1 * scale }
 end
 
-local function applyCamera(model, distance, cameraHeight)
-    local file = model:GetModelFileID()
-    if not file or file == 0 then return false end
-    model:SetModelScale(Layout.modelScale)
-    model:SetPosition(0, 0, 0)
-    model:SetCustomCamera(1)
-    if not model:HasCustomCamera() then return false end
-    model:SetCameraPosition(distance, 0, cameraHeight)
-    model:SetCameraTarget(0, 0, cameraHeight)
-    model.cameraDistance = distance
-    model.cameraHeight = cameraHeight
-    return true
+local function measure(actor)
+    if actor.bounds or not actor:IsLoaded() then return end
+    if actor.IsGeoReady and not actor:IsGeoReady() then return end
+    actor:SetUseCenterForOrigin(false, false, false)
+    actor:SetScale(Layout.modelScale)
+    actor:SetPitch(0)
+    actor:SetRoll(0)
+    stand(actor)
+    actor:SetPreferModelCollisionBounds(false)
+    local bounds = readBounds(actor)
+    if not bounds then return end
+    -- Body collision bounds keep a sword, cape, or particle from defining feet.
+    -- The API falls back to model bounds when collision bounds are unavailable.
+    actor:SetPreferModelCollisionBounds(true)
+    local body = readBounds(actor) or bounds
+    actor:SetPreferModelCollisionBounds(false)
+    bounds.centerX = (body.minX + body.maxX) / 2
+    bounds.centerY = (body.minY + body.maxY) / 2
+    bounds.ground = body.bottom
+    actor.bounds = bounds
 end
 
+function Models:PositionModels()
+    if not self.cameraDistance then return end
+    for _, model in ipairs({ self.npc, self.player }) do
+        local bounds = model.bounds
+        if bounds then
+            local cosine, sine = math.cos(model.facing), math.sin(model.facing)
+            model:SetYaw(model.facing)
+            model:SetPosition(-bounds.centerX * cosine + bounds.centerY * sine,
+                model.sideOffset - bounds.centerX * sine - bounds.centerY * cosine, -bounds.ground)
+        end
+    end
+end
+
+--@alpha@
+-- Numeric world positions and native projected ground points verify alignment.
+function Models:TraceProjection()
+    if not NS.Data or not NS.Data.db or not self.cameraDistance then return end
+    local now = GetTime()
+    if self.projectionGeneration ~= self.generation then
+        self.projectionGeneration, self.projectionSamples, self.projectionNext = self.generation, 0, 0
+    end
+    if self.projectionSamples >= 4 or now < self.projectionNext then return end
+    self.projectionSamples = self.projectionSamples + 1
+    self.projectionNext = now + 1
+    local entry = { elapsed = now, sample = self.projectionSamples,
+        camera = { self.root:GetCameraPosition() },
+        fieldOfView = self.root:GetCameraFieldOfView(),
+        frameSize = { self.root:GetWidth(), self.root:GetHeight() } }
+    for _, role in ipairs({ "player", "npc" }) do
+        local model = self[role]
+        entry[role] = { modelFile = model:GetModelFileID(), bounds = model.bounds,
+            scale = model:GetScale(), position = { model:GetPosition() }, facing = model:GetYaw(),
+            projectedGround = { self.root:Project3DPointTo2D(0, model.sideOffset, 0) } }
+    end
+    local trace = NS.Data.db.modelProjectionDiagnostics
+    if type(trace) ~= "table" or trace.version ~= 3 then
+        trace = { version = 3, entries = {} }
+        NS.Data.db.modelProjectionDiagnostics = trace
+    end
+    trace.entries[#trace.entries + 1] = entry
+    if #trace.entries > 16 then table.remove(trace.entries, 1) end
+end
+--@end-alpha@
+
+-- Fit against the client's projection, whose magnification and axis signs
+-- differ from a textbook camera on this client. Never infer them from FOV.
 function Models:FitPair()
     local player, npc = self.player, self.npc
-    if not player or not npc then return end
     measure(player)
     measure(npc)
-    local distance = Layout.modelCameraDistance
-    local cameraHeight = Layout.modelCameraHeight
-    if player.bounds and npc.bounds then
-        local bottom = math.min(player.bounds.bottom, npc.bounds.bottom)
-        local top = math.max(player.bounds.top, npc.bounds.top)
-        cameraHeight = (bottom + top) / 2
-        distance = 0
-        for _, model in ipairs({ player, npc }) do
-            local width, height = model:GetWidth(), model:GetHeight()
-            if width <= 2 * Layout.edgeMargin or height <= 2 * Layout.edgeMargin then return end
-            -- PlayerModel does not expose its projection field of view. This
-            -- nominal angle estimates fitting from real base-mesh dimensions.
-            local vertical = math.tan(Layout.modelCameraFieldOfView / 2)
-            local horizontal = vertical * width / height
-            vertical = vertical * (1 - 2 * Layout.edgeMargin / height)
-            horizontal = horizontal * (1 - 2 * Layout.edgeMargin / width)
+    if not player.bounds or not npc.bounds then return end
+    local width, height = self.root:GetWidth(), self.root:GetHeight()
+    if width * Layout.modelWidth <= 2 * Layout.edgeMargin
+        or height * Layout.modelHeight <= 2 * Layout.edgeMargin then return end
+    if self.fittedPlayer ~= player.bounds or self.fittedNPC ~= npc.bounds
+        or self.fittedWidth ~= width or self.fittedHeight ~= height then
+        local corners, maximumDepth, maximumHeight = {}, 0, 0
+        for _, model in ipairs({ npc, player }) do
             local bounds = model.bounds
-            local verticalExtent = math.max(cameraHeight - bounds.bottom, bounds.top - cameraHeight)
             local cosine, sine = math.cos(model.defaultFacing), math.sin(model.defaultFacing)
-            -- Fit the opening angle. Rotation may clip the edges but must not
-            -- change either copy's shared zoom, including on periodic updates.
-            for _, x in ipairs({ bounds.minX, bounds.maxX }) do
-                for _, y in ipairs({ bounds.minY, bounds.maxY }) do
-                    local depth = x * cosine - y * sine
-                    local side = x * sine + y * cosine
-                    distance = math.max(distance, depth
-                        + math.max(math.abs(side) / horizontal, verticalExtent / vertical))
+            local left = model.side < 0 and width * Layout.modelSideInset
+                or width * (1 - Layout.modelSideInset - Layout.modelWidth)
+            local limits = { left = left + Layout.edgeMargin,
+                right = left + width * Layout.modelWidth - Layout.edgeMargin }
+            for _, x in ipairs({ bounds.minX - bounds.centerX, bounds.maxX - bounds.centerX }) do
+                for _, y in ipairs({ bounds.minY - bounds.centerY, bounds.maxY - bounds.centerY }) do
+                    local depth, lateral = x * cosine - y * sine, x * sine + y * cosine
+                    maximumDepth = math.max(maximumDepth, depth)
+                    for _, z in ipairs({ bounds.bottom - bounds.ground, bounds.top - bounds.ground }) do
+                        corners[#corners + 1] = { model = model, x = depth, y = lateral, z = z, limits = limits }
+                        maximumHeight = math.max(maximumHeight, math.abs(z))
+                    end
                 end
             end
         end
-    end
-    for _, model in ipairs({ player, npc }) do
-        if model.cameraDistance ~= distance or model.cameraHeight ~= cameraHeight then
-            applyCamera(model, distance, cameraHeight)
+        local bottom = height * Layout.modelBottomInset + Layout.edgeMargin
+        local top = height * (Layout.modelBottomInset + Layout.modelHeight) - Layout.edgeMargin
+        local function evaluate(distance)
+            self.root:SetCameraPosition(distance, 0, 0)
+            local originX = self.root:Project3DPointTo2D(0, 0, 0)
+            local unitX = self.root:Project3DPointTo2D(0, 1, 0)
+            if not finite(originX) or not finite(unitX) or math.abs(unitX - originX) < 0.000001 then return end
+            local offsets = {}
+            for _, model in ipairs({ npc, player }) do
+                local center = width * (Layout.modelSideInset + Layout.modelWidth / 2)
+                if model.side > 0 then center = width - center end
+                offsets[model] = (center - originX) / (unitX - originX)
+            end
+            local minimumHeight, maximumCameraHeight = -math.huge, math.huge
+            for _, corner in ipairs(corners) do
+                local y = corner.y + offsets[corner.model]
+                local screenX, screenY = self.root:Project3DPointTo2D(corner.x, y, corner.z)
+                local _, higherY = self.root:Project3DPointTo2D(corner.x, y, corner.z + 1)
+                if not finite(screenX) or not finite(screenY) or not finite(higherY) then return end
+                if screenX < corner.limits.left or screenX > corner.limits.right then return end
+                local slope = higherY - screenY
+                if math.abs(slope) < 0.000001 then return end
+                local low, high = (screenY - top) / slope, (screenY - bottom) / slope
+                if low > high then low, high = high, low end
+                minimumHeight = math.max(minimumHeight, low)
+                maximumCameraHeight = math.min(maximumCameraHeight, high)
+            end
+            if minimumHeight > maximumCameraHeight then return end
+            return maximumCameraHeight, offsets
         end
+        local near = maximumDepth + 0.02
+        local far = near + maximumHeight
+        local cameraHeight, offsets
+        -- Bracket a visible fit, then find the closest fitting shared distance.
+        for _ = 1, 16 do
+            cameraHeight, offsets = evaluate(far)
+            if cameraHeight then break end
+            far = far * 2
+            if far >= 900 then return end
+        end
+        if not cameraHeight then return end
+        for _ = 1, 16 do
+            local candidate = (near + far) / 2
+            local candidateHeight, candidateOffsets = evaluate(candidate)
+            if candidateHeight then
+                far, cameraHeight, offsets = candidate, candidateHeight, candidateOffsets
+            else
+                near = candidate
+            end
+        end
+        self.cameraDistance = far
+        self.root:SetCameraPosition(far, 0, cameraHeight)
+        for _, model in ipairs({ npc, player }) do model.sideOffset = offsets[model] end
+        self.fittedPlayer, self.fittedNPC = player.bounds, npc.bounds
+        self.fittedWidth, self.fittedHeight = width, height
     end
+    self:PositionModels()
+    player:Show()
+    npc:Show()
+    --@alpha@
+    self:TraceProjection()
+    --@end-alpha@
 end
 
-local function configure(model)
-    model.cameraDistance = nil
-    if not applyCamera(model, Layout.modelCameraDistance, Layout.modelCameraHeight) then return end
-    model:SetFacing(model.facing)
-    stand(model)
-end
-
-local function createModel(parent, facing)
-    local model = CreateFrame("PlayerModel", nil, parent)
-    model.facing = facing
-    model.defaultFacing = facing
-    model:EnableMouse(false)
-    model:SetKeepModelOnHide(true)
-    model.measureScene = CreateFrame("ModelScene", nil, model)
-    model.measureScene:SetSize(1, 1)
-    model.measureScene:SetPoint("CENTER", model, "CENTER")
-    model.measureScene:EnableMouse(false)
-    model.measureScene:SetAlpha(0)
-    model.measureActor = model.measureScene:CreateActor()
-    model.measureActor:Show()
-    model:SetScript("OnModelLoaded", configure)
-    model:SetScript("OnAnimFinished", function(self)
-        if self.emoteUntil then stand(self) end
-    end)
+-- Actors share one scene, one native projection, and the scene's z=0 floor.
+local function createModel(scene, facing, side)
+    local model = scene:CreateActor()
+    model.facing, model.defaultFacing, model.side = facing, facing, side
     model:Hide()
     return model
 end
@@ -184,15 +254,16 @@ function Models:Hide()
     self.generation = self.generation + 1
     self.active, self.npcGUID, self.missingSince = nil, nil, nil
     self.pendingEmote, self.emoteContext, self.emoteEvent = nil, nil, nil
+    self.cameraDistance, self.fittedPlayer, self.fittedNPC = nil, nil, nil
     driver:SetScript("OnUpdate", nil)
     if self.root then
         self.root:Hide()
         for _, model in ipairs({ self.player, self.npc }) do
             model:Hide()
             model:ClearModel()
-            model.measureActor:ClearModel()
-            model.bounds, model.measureFile, model.cameraDistance = nil, nil, nil
+            model.bounds, model.sideOffset = nil, nil
             model.guid = nil
+            model.unit = nil
             model.facing = model.defaultFacing
             model.emoteUntil, model.nextEmote = nil, nil
         end
@@ -202,11 +273,19 @@ end
 local function bind(model, unit, guid)
     if not guid or not UnitExists(unit) then return end
     if model.guid == guid then return end
-    model.bounds, model.measureFile, model.cameraDistance = nil, nil, nil
-    local ok, success = pcall(model.SetUnit, model, unit)
+    model.bounds = nil
+    model.unit = unit
+    model:Hide()
+    model:ClearModel()
+    local ok, success
+    if unit == "player" then
+        ok, success = pcall(model.SetModelByUnit, model, unit, false, true, false, false)
+    else
+        ok, success = pcall(model.SetModelByUnitCreatureDisplayID, model, unit)
+    end
     if ok and success ~= false then
         model.guid = guid
-        configure(model)
+        measure(model)
     end
 end
 
@@ -233,10 +312,20 @@ function Models:Update()
     end
     local parent = background
     if not self.root then
-        self.root = CreateFrame("Frame", nil, parent)
+        self.root = CreateFrame("ModelScene", nil, parent)
         self.root:EnableMouse(false)
-        self.player = createModel(self.root, -0.35)
-        self.npc = createModel(self.root, 0.35)
+        self.root:SetCameraFieldOfView(Layout.modelCameraFieldOfView)
+        -- Let the engine construct its camera basis; hand-built axis vectors
+        -- can reflect the view and reverse triangle winding.
+        self.root:SetCameraOrientationByYawPitchRoll(math.pi, 0, 0)
+        self.root:SetCameraNearClip(0.01)
+        self.root:SetCameraFarClip(1000)
+        self.root:SetLightAmbientColor(0.8, 0.8, 0.8)
+        self.root:SetLightDiffuseColor(0.8, 0.8, 0.8)
+        self.root:SetLightDirection(-1, 0, -1)
+        self.root:SetLightVisible(true)
+        self.player = createModel(self.root, -0.35, 1)
+        self.npc = createModel(self.root, 0.35, -1)
     elseif self.root:GetParent() ~= parent then
         self.root:SetParent(parent)
     end
@@ -246,25 +335,11 @@ function Models:Update()
     self.root:SetFrameStrata(strata)
     self.root:SetFrameLevel(level)
     self.root:Show()
-    local width, height = self.root:GetWidth(), self.root:GetHeight()
-    -- Fixed screen-relative viewports: pane sizes never move or resize the copies.
-    for index, model in ipairs({ self.npc, self.player }) do
-        model:SetFrameStrata(strata)
-        -- Share the backdrop's level, above its texture but below the menu level.
-        model:SetFrameLevel(level)
-        model:ClearAllPoints()
-        model:SetPoint(index == 1 and "BOTTOMLEFT" or "BOTTOMRIGHT", self.root,
-            index == 1 and "BOTTOMLEFT" or "BOTTOMRIGHT",
-            index == 1 and width * Layout.modelSideInset or -width * Layout.modelSideInset, height * Layout.modelBottomInset)
-        model:SetSize(width * Layout.modelWidth, height * Layout.modelHeight)
-        model:Show()
-    end
     bind(self.player, "player", UnitGUID("player"))
     local guid = UnitGUID("npc")
     if guid and self.npcGUID and guid ~= self.npcGUID then
         self.npc:ClearModel()
-        self.npc.measureActor:ClearModel()
-        self.npc.bounds, self.npc.measureFile = nil, nil
+        self.npc.bounds = nil
         self.npc.guid = nil
         self.npc.facing = self.npc.defaultFacing
     end
@@ -272,7 +347,7 @@ function Models:Update()
     if guid then bind(self.npc, "npc", guid) end
     local now = GetTime()
     for _, model in ipairs({ self.npc, self.player }) do
-        -- Some models omit the completion callback or loop an emote indefinitely.
+        -- Actor emotes can loop; always return to standing after the timeout.
         if model.emoteUntil and now >= model.emoteUntil then stand(model) end
     end
     self:FitPair()
