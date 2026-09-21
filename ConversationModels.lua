@@ -64,6 +64,42 @@ local function tryEmote(model, now)
     if not ok or success == false then stand(model) end
 end
 
+-- Keep greeting memory across closures, independently of speech addons.
+function Models:TrackGreeting(event)
+    local npc = UnitGUID("npc")
+    if npc ~= self.lastNPC then self.introduction = nil end
+    self.lastNPC = npc
+    self.suppressGreeting = false
+    if not npc or (event ~= "GOSSIP_SHOW" and event ~= "QUEST_GREETING") then return end
+    local getter = event == "GOSSIP_SHOW" and (C_GossipInfo and C_GossipInfo.GetText or GetGossipText)
+        or GetGreetingText
+    if type(getter) ~= "function" then return end
+    local ok, text = pcall(getter)
+    if not ok or type(text) ~= "string" then return end
+    text = text:gsub("|H.-|h(.-)|h", "%1")
+        :gsub("|T.-|t", ""):gsub("|A.-|a", "")
+        :gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[%w_]+:", "")
+        :gsub("|r", ""):gsub("|n", "\n"):gsub("||", "|")
+        :gsub(",", ""):gsub("%.%.+", " "):gsub("…", " ")
+        :gsub("%s+", " "):match("^%s*(.-)%s*$")
+    if text == "" then return end
+    self.suppressGreeting = self.introduction == text
+    if not self.introduction then self.introduction = text end
+end
+
+-- Suppression cancels queued and active gestures for both displayed actors.
+function Models:UpdateEmotes(now)
+    if self.suppressGreeting then
+        for _, model in ipairs({ self.npc, self.player }) do
+            model.pendingEmoteChoices = nil
+            if model.emoteUntil then stand(model) end
+        end
+    else
+        tryEmote(self.npc, now)
+        tryEmote(self.player, now)
+    end
+end
+
 local function finite(value)
     return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
@@ -257,6 +293,7 @@ end
 function Models:Hide()
     self.generation = self.generation + 1
     self.active, self.npcGUID, self.missingSince = nil, nil, nil
+    self.suppressGreeting = nil
     self.pendingEmote, self.emoteContext, self.emoteEvent = nil, nil, nil
     self.cameraDistance, self.fittedPlayer, self.fittedNPC = nil, nil, nil
     driver:SetScript("OnUpdate", nil)
@@ -368,11 +405,11 @@ function Models:Update()
         self.npc.pendingEmoteChoices = choices.npc
         self.player.pendingEmoteChoices = choices.player
     end
-    tryEmote(self.npc, now)
-    tryEmote(self.player, now)
+    self:UpdateEmotes(now)
 end
 
 function Models:Open(event)
+    self:TrackGreeting(event)
     self.active = true
     self.pendingEmote, self.emoteEvent = true, event
     self.generation = self.generation + 1
