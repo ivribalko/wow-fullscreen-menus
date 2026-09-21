@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retained contextual emote requests until models finish loading and their cooldown expires.
+
 - Used native screen projection to fit and place both actors within their visible regions, correcting off-screen placement.
 - Placed conversation models in one native scene with a shared camera and collision-bound ground plane; fit opening poses without changing zoom during rotation.
 

@@ -51,8 +51,12 @@ local function stand(model)
     model:SetAnimation(0)
 end
 
-local function tryEmote(model, choices, now)
-    if not model.guid or not model.bounds or (model.nextEmote and now < model.nextEmote) then return end
+local function tryEmote(model, now)
+    local choices = model.pendingEmoteChoices
+    if not choices or not model.guid or not model.bounds or not model:IsVisible()
+        or (model.nextEmote and now < model.nextEmote) then return end
+    -- Consume each request only after loading and cooldown have completed.
+    model.pendingEmoteChoices = nil
     model.nextEmote = now + emoteCooldown
     if math.random() >= emoteChance then return end
     model.emoteUntil = now + emoteTimeout
@@ -265,7 +269,7 @@ function Models:Hide()
             model.guid = nil
             model.unit = nil
             model.facing = model.defaultFacing
-            model.emoteUntil, model.nextEmote = nil, nil
+            model.emoteUntil, model.nextEmote, model.pendingEmoteChoices = nil, nil, nil
         end
     end
 end
@@ -341,6 +345,7 @@ function Models:Update()
         self.npc:ClearModel()
         self.npc.bounds = nil
         self.npc.guid = nil
+        self.npc.emoteUntil, self.npc.nextEmote, self.npc.pendingEmoteChoices = nil, nil, nil
         self.npc.facing = self.npc.defaultFacing
     end
     self.npcGUID = guid or self.npcGUID
@@ -359,9 +364,12 @@ function Models:Update()
         local event = self.pendingEmote and self.emoteEvent
         self.pendingEmote = nil
         local choices = emotes[event] or (opening and emotes.greeting) or emotes.conversation
-        tryEmote(self.npc, choices.npc, now)
-        tryEmote(self.player, choices.player, now)
+        -- Keep the latest context per actor while either model loads.
+        self.npc.pendingEmoteChoices = choices.npc
+        self.player.pendingEmoteChoices = choices.player
     end
+    tryEmote(self.npc, now)
+    tryEmote(self.player, now)
 end
 
 function Models:Open(event)
