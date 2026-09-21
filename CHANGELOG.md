@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fitted conversation bounds at the opening facing, keeping shared zoom fixed during rotation and allowing some edge clipping.
+
 - Centered the shared model camera on combined top and bottom bounds and accounted for offset origins when fitting, correcting the fixed-height clearance calculation.
 
 - Retained native PlayerModel appearances, facing, lighting, and animation while using invisible model-file helpers for bounds-based shared zoom estimates.

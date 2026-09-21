@@ -90,9 +90,8 @@ local function measure(model)
     model.bounds = {
         bottom = z0 * Layout.modelScale,
         top = z1 * Layout.modelScale,
-        -- Measure from the actual origin, not an assumed centered base mesh.
-        radius = math.sqrt(math.max(math.abs(x0), math.abs(x1))^2
-            + math.max(math.abs(y0), math.abs(y1))^2) * Layout.modelScale,
+        minX = x0 * Layout.modelScale, maxX = x1 * Layout.modelScale,
+        minY = y0 * Layout.modelScale, maxY = y1 * Layout.modelScale,
     }
 end
 
@@ -133,8 +132,17 @@ function Models:FitPair()
             horizontal = horizontal * (1 - 2 * Layout.edgeMargin / width)
             local bounds = model.bounds
             local verticalExtent = math.max(cameraHeight - bounds.bottom, bounds.top - cameraHeight)
-            distance = math.max(distance, bounds.radius
-                + math.max(bounds.radius / horizontal, verticalExtent / vertical))
+            local cosine, sine = math.cos(model.defaultFacing), math.sin(model.defaultFacing)
+            -- Fit the opening angle. Rotation may clip the edges but must not
+            -- change either copy's shared zoom, including on periodic updates.
+            for _, x in ipairs({ bounds.minX, bounds.maxX }) do
+                for _, y in ipairs({ bounds.minY, bounds.maxY }) do
+                    local depth = x * cosine - y * sine
+                    local side = x * sine + y * cosine
+                    distance = math.max(distance, depth
+                        + math.max(math.abs(side) / horizontal, verticalExtent / vertical))
+                end
+            end
         end
     end
     for _, model in ipairs({ player, npc }) do
