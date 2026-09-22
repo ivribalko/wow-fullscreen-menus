@@ -13,4 +13,5 @@ UI.lua
 NativeBags.lua
 Menus.lua
 Integration.lua
+ConversationEmotes.lua
 ConversationModels.lua

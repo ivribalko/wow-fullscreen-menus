@@ -14,13 +14,13 @@ local opens = {
 -- Native model animation IDs, not chat emotes; only the displayed copies act.
 local talk, question, bow, wave, nod = 60, 65, 66, 67, 185
 local emotes = {
-    greeting = { npc = { wave, talk }, player = { wave, nod } },
-    QUEST_DETAIL = { npc = { talk }, player = { question, nod } },
-    QUEST_PROGRESS = { npc = { question, talk }, player = { talk, nod } },
-    QUEST_COMPLETE = { npc = { nod, talk }, player = { bow, nod } },
-    TRAINER_SHOW = { npc = { talk }, player = { question, nod } },
-    MERCHANT_SHOW = { npc = { talk }, player = { question, nod } },
-    conversation = { npc = { talk, question }, player = { talk, nod } },
+    greeting = { wave, nod },
+    QUEST_DETAIL = { question, nod },
+    QUEST_PROGRESS = { talk, nod },
+    QUEST_COMPLETE = { bow, nod },
+    TRAINER_SHOW = { question, nod },
+    MERCHANT_SHOW = { question, nod },
+    conversation = { talk, nod },
 }
 local emoteChance, emoteCooldown, emoteTimeout = 0.35, 3, 3
 local rotationDeadzone, rotationSpeed = 0.15, math.pi
@@ -51,21 +51,26 @@ local function stand(model)
     model:SetAnimation(0)
 end
 
-local function tryEmote(model, now)
+local function tryEmote(model, now, guaranteed)
     local choices = model.pendingEmoteChoices
     if not choices or not model.guid or not model.bounds or not model:IsVisible()
-        or (model.nextEmote and now < model.nextEmote) then return end
+        or (not guaranteed and model.nextEmote and now < model.nextEmote) then return end
     -- Consume each request only after loading and cooldown have completed.
     model.pendingEmoteChoices = nil
     model.nextEmote = now + emoteCooldown
-    if math.random() >= emoteChance then return end
+    if not guaranteed and math.random() >= emoteChance then return end
     model.emoteUntil = now + emoteTimeout
     local ok, success = pcall(model.SetAnimation, model, choices[math.random(#choices)])
-    if not ok or success == false then stand(model) end
+    if not ok or success == false then
+        -- Actors do not expose HasAnimation on Forever. Rejected gestures
+        -- fall back to talking; the native model may also substitute a sequence.
+        ok, success = pcall(model.SetAnimation, model, talk)
+        if not ok or success == false then stand(model) end
+    end
 end
 
 -- Keep greeting memory across closures, independently of speech addons.
-function Models:TrackGreeting(event)
+function Models:TrackGreeting(event, suppliedText)
     local npc = UnitGUID("npc")
     if npc ~= self.lastNPC then self.introduction = nil end
     self.lastNPC = npc
@@ -73,8 +78,9 @@ function Models:TrackGreeting(event)
     if not npc or (event ~= "GOSSIP_SHOW" and event ~= "QUEST_GREETING") then return end
     local getter = event == "GOSSIP_SHOW" and (C_GossipInfo and C_GossipInfo.GetText or GetGossipText)
         or GetGreetingText
-    if type(getter) ~= "function" then return end
-    local ok, text = pcall(getter)
+    if suppliedText == nil and type(getter) ~= "function" then return end
+    local ok, text = true, suppliedText
+    if text == nil then ok, text = pcall(getter) end
     if not ok or type(text) ~= "string" then return end
     text = text:gsub("|H.-|h(.-)|h", "%1")
         :gsub("|T.-|t", ""):gsub("|A.-|a", "")
@@ -87,7 +93,7 @@ function Models:TrackGreeting(event)
     if not self.introduction then self.introduction = text end
 end
 
--- Suppression cancels queued and active gestures for both displayed actors.
+-- Repeated introductions cancel both active and queued gestures.
 function Models:UpdateEmotes(now)
     if self.suppressGreeting then
         for _, model in ipairs({ self.npc, self.player }) do
@@ -95,9 +101,25 @@ function Models:UpdateEmotes(now)
             if model.emoteUntil then stand(model) end
         end
     else
-        tryEmote(self.npc, now)
+        tryEmote(self.npc, now, true)
         tryEmote(self.player, now)
     end
+end
+
+-- A new page interrupts the previous NPC gesture, without a probability gate
+-- or cooldown. While loading, retain only the currently displayed prose.
+function Models:UpdateNPCText(panel)
+    local text = NS.ConversationEmotes:ReadText(panel)
+    local guid = self.npc.guid
+    if guid == self.textNPC and text == self.interactionText then return end
+    self.textNPC, self.interactionText = guid, text
+    local name = panel:GetName()
+    local greeting = name == "GossipFrame" and "GOSSIP_SHOW"
+        or (name == "QuestFrame" and GreetingText and GreetingText:IsVisible() and "QUEST_GREETING")
+    self:TrackGreeting(greeting or "DIALOGUE", text)
+    self.npc.pendingEmoteChoices = nil
+    if self.npc.emoteUntil then stand(self.npc) end
+    if text ~= "" then self.npc.pendingEmoteChoices = NS.ConversationEmotes:Choose(text) end
 end
 
 local function finite(value)
@@ -294,6 +316,7 @@ function Models:Hide()
     self.generation = self.generation + 1
     self.active, self.npcGUID, self.missingSince = nil, nil, nil
     self.suppressGreeting = nil
+    self.textNPC, self.interactionText = nil, nil
     self.pendingEmote, self.emoteContext, self.emoteEvent = nil, nil, nil
     self.cameraDistance, self.fittedPlayer, self.fittedNPC = nil, nil, nil
     driver:SetScript("OnUpdate", nil)
@@ -401,15 +424,14 @@ function Models:Update()
         local event = self.pendingEmote and self.emoteEvent
         self.pendingEmote = nil
         local choices = emotes[event] or (opening and emotes.greeting) or emotes.conversation
-        -- Keep the latest context per actor while either model loads.
-        self.npc.pendingEmoteChoices = choices.npc
-        self.player.pendingEmoteChoices = choices.player
+        -- Keep the latest player context while its model loads.
+        self.player.pendingEmoteChoices = choices
     end
+    self:UpdateNPCText(panel)
     self:UpdateEmotes(now)
 end
 
 function Models:Open(event)
-    self:TrackGreeting(event)
     self.active = true
     self.pendingEmote, self.emoteEvent = true, event
     self.generation = self.generation + 1

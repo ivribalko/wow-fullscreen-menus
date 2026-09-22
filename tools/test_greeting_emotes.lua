@@ -5,6 +5,7 @@ local npc, text = "npc-a", "Welcome"
 UnitGUID = function() return npc end
 C_GossipInfo = { GetText = function() return text end }
 GetGreetingText = function() return text end
+assert(loadfile("ConversationEmotes.lua"))("FullscreenMenus", ns)
 assert(loadfile("ConversationModels.lua"))("FullscreenMenus", ns)
 local models = ns.ConversationModels
 models:TrackGreeting("GOSSIP_SHOW")
