@@ -100,8 +100,13 @@ function Integration:SyncNativeMenuVisibility()
                 or (UI.nativeChromeMode == "inventory" and bags:IsActive()
                     and bags.saved[panel] ~= nil)
             self:ReleaseUIIsolationFrame(panel)
-            UI:CancelFade(panel)
-            if visible then bags:Reveal(panel) else bags:Conceal(panel) end
+            if visible then
+                -- The selected menu may still be fading in from zero opacity.
+                bags:Reveal(panel)
+            else
+                UI:CancelFade(panel)
+                bags:Conceal(panel)
+            end
         end
     end
 end

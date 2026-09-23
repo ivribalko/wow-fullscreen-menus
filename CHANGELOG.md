@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserved the active menu opening fade so the pause menu remains visible.
+
 - Concealed inactive menus during item reading, restored fullscreen placement on refocus, and excluded stack-split and confirmation dialogs from menu discovery.
 
 - Matched changing NPC prose against 31 expressive animations and randomly selected from up to five close candidates, preserving repeated-greeting suppression for both models. NPC dialogue gestures bypass chance and cooldown; player gestures retain their existing timing.
