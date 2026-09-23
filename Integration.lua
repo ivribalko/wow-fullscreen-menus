@@ -902,12 +902,23 @@ function Integration:PresentNativeInventory()
     return true
 end
 
-function Integration:QueueNativeInventory()
+function Integration:QueueNativeInventory(bagsClosing)
     if self:IsEditModeActive() then return end
-    if not self.ready or self.suppress or InCombatLockdown() or self.nativeInventoryPending then return end
+    if not self.ready or self.suppress or InCombatLockdown() then return end
+    if bagsClosing and self.interactions.MERCHANT_SHOW then self.merchantBagClosePending = true end
+    if self.nativeInventoryPending then return end
     self.nativeInventoryPending = true
     C_Timer.After(0, function()
         self.nativeInventoryPending = nil
+        local closeMerchant = self.merchantBagClosePending
+        self.merchantBagClosePending = nil
+        -- Native Back closes inventory before focus returns to the merchant.
+        -- Wait for all bag hides, then dismiss the remaining interaction.
+        if closeMerchant and self.interactions.MERCHANT_SHOW and not self:AreNativeBagsShown()
+            and not self:IsEditModeActive() and not InCombatLockdown() then
+            self:CloseServiceInteraction("merchant")
+            return
+        end
         self:PresentNativeInventory()
     end)
 end
@@ -974,7 +985,7 @@ function Integration:InstallHooks()
         if type(_G[name]) == "function" then
             hooksecurefunc(name, function(bag)
                 if name == "CloseBag" and (type(bag) ~= "number" or bag < 0 or bag > (NUM_TOTAL_EQUIPPED_BAG_SLOTS or 5)) then return end
-                self:QueueNativeInventory()
+                self:QueueNativeInventory(true)
             end)
         end
     end
@@ -1004,7 +1015,7 @@ function Integration:InstallHooks()
         self:InstallNativePanelHooks(frame, function(panel)
             if self.native then self:ReleaseUIIsolationFrame(panel) end
         end,
-            function() self:QueueNativeInventory() end)
+            function() self:QueueNativeInventory(true) end)
     end
 end
 

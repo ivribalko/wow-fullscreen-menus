@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Closed the merchant interaction when native Back closes the last inventory bag.
+
 - Preserved the active menu opening fade so the pause menu remains visible.
 
 - Concealed inactive menus during item reading, restored fullscreen placement on refocus, and excluded stack-split and confirmation dialogs from menu discovery.
