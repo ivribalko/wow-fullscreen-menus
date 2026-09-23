@@ -82,29 +82,33 @@ function Integration:InstallNativeGamepadHooks()
     end)
 end
 
--- The wheel opens bags alongside Character; display only the selected surface
--- while retaining both native frames for trigger navigation.
-function Integration:SyncCharacterInventoryVisibility()
-    if InCombatLockdown() or self:HasInteraction() then return end
-    if not InputUtil or not InputUtil.IsGamepadUIEnabled() then return end
-    local mode = UI.nativeChromeMode
-    if mode ~= "character" and mode ~= "inventory" then return end
-    if not CharacterFrame or not CharacterFrame:IsShown() or not self:AreNativeBagsShown() then return end
+-- Keep only the presented menu visible without changing native focus registration.
+function Integration:SyncNativeMenuVisibility()
+    if InCombatLockdown() then return end
+    local selected = UI:GetNativePanel()
     local bags = NS.NativeBags
-    local function selectSurface(frame, selected)
-        self:ReleaseUIIsolationFrame(frame)
-        UI:CancelFade(frame)
-        if selected then bags:Reveal(frame) else bags:Conceal(frame) end
+    local candidates = {}
+    for panel in pairs(NS.Menus.watched) do candidates[panel] = true end
+    for _, panel in pairs({ CharacterFrame, PlayerSpellsFrame, WorldMapFrame,
+        self:GetInteractionPanel() }) do candidates[panel] = true end
+    for _, panel in ipairs(self:GetNativeBagFrames()) do
+        if panel ~= ContainerFrameContainer then candidates[panel] = true end
     end
-    selectSurface(CharacterFrame, mode == "character")
-    for _, frame in ipairs(self:GetNativeBagFrames()) do
-        if frame ~= ContainerFrameContainer then selectSurface(frame, mode == "inventory") end
+    for panel in pairs(candidates) do
+        if panel:IsShown() then
+            local visible = panel == selected
+                or (UI.nativeChromeMode == "inventory" and bags:IsActive()
+                    and bags.saved[panel] ~= nil)
+            self:ReleaseUIIsolationFrame(panel)
+            UI:CancelFade(panel)
+            if visible then bags:Reveal(panel) else bags:Conceal(panel) end
+        end
     end
 end
 
 -- Native bindings own visibility; follow their final focus using presentation only.
 function Integration:ObserveNativeGamepadFocus(manager)
-    if self:IsEditModeActive() or self:IsActionBarEditing() or InCombatLockdown() or not UI.nativeChrome or not UI.nativeChrome:IsShown() then return end
+    if self:IsEditModeActive() or self:IsActionBarEditing() or InCombatLockdown() or not UI.nativeChrome then return end
     local active = manager:GetActiveFrame()
     if not active or not active:IsShown() then return end
     local bags = NS.NativeBags
@@ -114,9 +118,9 @@ function Integration:ObserveNativeGamepadFocus(manager)
             bags:SelectPane(inventory, true)
         end
     else
-        local previous = self.nativeFocusedPanel or UI:GetNativePanel()
+        local previous = UI:GetNativePanel()
         local entry = NS.Menus:GetCurrentEntry()
-        if active ~= previous then
+        if active ~= previous or not UI.nativeChrome:IsShown() then
             -- Unsupported interactions reject inventory presentation. Do not reveal
             -- their bags or conceal the current menu unless that handoff succeeds.
             if active == ContainerFrameCombinedBags then
@@ -137,6 +141,9 @@ function Integration:ObserveNativeGamepadFocus(manager)
         end
         self.nativeFocusedPanel = active
     end
+    UI:LayoutNativePanel()
+    bags:Layout()
+    self:SyncNativeMenuVisibility()
     UI:UpdateControllerBindings()
 end
 
@@ -518,6 +525,14 @@ function Integration:ScheduleUIIsolationRestore()
     self.uiIsolationRestorePending = true
     C_Timer.After(0, function()
         self.uiIsolationRestorePending = false
+        if UI.nativeChrome and not UI.nativeChrome:IsShown() then
+            local manager = GamepadMode and GamepadMode.FrameControlsManager
+            if manager and InputUtil and InputUtil.IsGamepadUIEnabled() then
+                self:ObserveNativeGamepadFocus(manager)
+            elseif self:AreNativeBagsShown() then
+                self:PresentNativeInventory()
+            end
+        end
         local nativeShown = UI.nativeChrome and UI.nativeChrome:IsShown()
         if not nativeShown then
             UI.menuSessionActive = nil
@@ -850,6 +865,15 @@ function Integration:PresentNativeInventory()
         and CharacterFrame and CharacterFrame:IsShown() and self:AreNativeBagsShown() then
         UI:ShowNativeChrome(CharacterFrame.activeSubframe, "character")
         self.nativeFocusedPanel = CharacterFrame
+        return
+    end
+    -- Deferred bag updates must not replace the item window owning native focus.
+    local active = manager and manager:GetActiveFrame()
+    if not panel and InputUtil and InputUtil.IsGamepadUIEnabled()
+        and active and active:IsShown() and NS.Menus.watched[active] then
+        self:ReleaseUIIsolationFrame(active)
+        NS.NativeBags:Reveal(active)
+        NS.Menus:Open(active)
         return
     end
     if not panel and not self:AreNativeBagsShown() then

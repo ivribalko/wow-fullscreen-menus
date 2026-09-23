@@ -110,6 +110,7 @@ function Bags:Restore()
     end
     self.saved = {}
     self.layoutApplied = nil
+    self.placements = nil
     self.updating = nil
 end
 
@@ -117,7 +118,16 @@ function Bags:Layout()
     if NS.Integration:IsEditModeActive() or InCombatLockdown() or self.updating then return end
     self:UpdatePane()
     if not self:IsActive() then self:Restore(); return end
-    if self.layoutApplied then return end
+    if self.layoutApplied then
+        self.updating = true
+        for frame, placement in pairs(self.placements or {}) do
+            frame:SetScale(placement.scale)
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", NS.UI.nativeChrome, "TOPLEFT", placement.x, placement.y)
+        end
+        self.updating = nil
+        return
+    end
     local frames = {}
     for _, frame in ipairs(NS.Integration:GetNativeBagFrames()) do
         if frame ~= ContainerFrameContainer and frame ~= ContainerFrameCombinedBags
@@ -155,6 +165,7 @@ function Bags:Layout()
     local rows = math.ceil(#frames / bestColumns)
     local cellHeight = (height - gap * (rows - 1)) / rows
     self.updating = true
+    self.placements = {}
     for index, frame in ipairs(frames) do
         if not self.saved[frame] then
             local points = {}
@@ -166,7 +177,12 @@ function Bags:Layout()
         local count = math.min(bestColumns, #frames - row * bestColumns)
         local cellWidth = (width - gap * (count - 1)) / count
         local parentScale = frame:GetEffectiveScale() / frame:GetScale()
-        frame:SetScale(bestScale * chrome:GetEffectiveScale() / parentScale)
+        self.placements[frame] = {
+            scale = bestScale * chrome:GetEffectiveScale() / parentScale,
+            x = (ui.edgeMargin + column * (cellWidth + gap) + cellWidth / 2) / bestScale,
+            y = -(top + row * (cellHeight + gap) + cellHeight / 2) / bestScale,
+        }
+        frame:SetScale(self.placements[frame].scale)
         frame:ClearAllPoints()
         frame:SetPoint("CENTER", chrome, "TOPLEFT",
             (ui.edgeMargin + column * (cellWidth + gap) + cellWidth / 2) / bestScale,

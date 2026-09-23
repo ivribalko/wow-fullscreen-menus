@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Concealed inactive menus during item reading, restored fullscreen placement on refocus, and excluded stack-split and confirmation dialogs from menu discovery.
+
 - Matched changing NPC prose against 31 expressive animations and randomly selected from up to five close candidates, preserving repeated-greeting suppression for both models. NPC dialogue gestures bypass chance and cooldown; player gestures retain their existing timing.
 - Retained contextual emote requests until models finish loading and their cooldown expires.
 - Used native screen projection to fit and place both actors within their visible regions, correcting off-screen placement.

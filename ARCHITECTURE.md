@@ -69,6 +69,8 @@ Relevant source: [gamepad action bars](https://github.com/Gethe/wow-ui-source/bl
 
 Forever loads the Lua modules through a manifest targeting interface `16001`. The CurseForge repository webhook packages pushed tags into a single ZIP with the Forever manifest. The hosted packager replaces `@project-version@` with the tag, processes alpha markers, and applies `.pkgmeta` exclusions. Release notes come from `CHANGELOG.md`; repository and machine-specific files are excluded.
 
+Inactive registered menus are concealed without native hide callbacks. Focus restoration reconciles the presented panel and reapplies fullscreen placement; transient stack-split and confirmation dialogs remain outside menu discovery. Separate bags retain fitted placements for restoration after native repositioning.
+
 ## Verification boundaries
 
 Static checks and mocked lifecycle checks cover module loading, menu navigation, interaction cleanup, and presentation restoration. Native rendering, secure actions, addon compatibility, and physical controller navigation require in-game acceptance checks.
