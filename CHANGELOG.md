@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Kept the usual menu enlargement and backdrop in combat without hiding unrelated UI. Protected frame changes and world-name/nameplate restoration wait until combat ends.
+
 - Closed the merchant interaction when native Back closes the last inventory bag.
 
 - Preserved the active menu opening fade so the pause menu remains visible.

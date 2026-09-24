@@ -84,7 +84,6 @@ end
 
 -- Keep only the presented menu visible without changing native focus registration.
 function Integration:SyncNativeMenuVisibility()
-    if InCombatLockdown() then return end
     local selected = UI:GetNativePanel()
     local bags = NS.NativeBags
     local candidates = {}
@@ -95,7 +94,7 @@ function Integration:SyncNativeMenuVisibility()
         if panel ~= ContainerFrameContainer then candidates[panel] = true end
     end
     for panel in pairs(candidates) do
-        if panel:IsShown() then
+        if panel:IsShown() and bags:CanChangeVisibility(panel) then
             local visible = panel == selected
                 or (UI.nativeChromeMode == "inventory" and bags:IsActive()
                     and bags.saved[panel] ~= nil)
@@ -113,9 +112,10 @@ end
 
 -- Native bindings own visibility; follow their final focus using presentation only.
 function Integration:ObserveNativeGamepadFocus(manager)
-    if self:IsEditModeActive() or self:IsActionBarEditing() or InCombatLockdown() or not UI.nativeChrome then return end
+    if self:IsEditModeActive() or self:IsActionBarEditing() or not UI.nativeChrome then return end
     local active = manager:GetActiveFrame()
     if not active or not active:IsShown() then return end
+    if InCombatLockdown() and not UI:CanPresentInCombat(active) then return end
     local bags = NS.NativeBags
     if bags.interaction then
         local inventory = active == ContainerFrameCombinedBags
@@ -357,7 +357,8 @@ function Integration:QueueInteractionOpen()
     C_Timer.After(0, function()
         self.interactionOpenPending = nil
         local panel = self:GetInteractionPanel()
-        if not self.ready or InCombatLockdown() or not panel then return end
+        if not self.ready or not panel then return end
+        if InCombatLockdown() and not UI:CanPresentInCombat(panel) then return end
         self:ReleaseUIIsolationFrame(panel)
         self:PresentNativeInventory()
     end)
@@ -411,6 +412,7 @@ local worldNameCVars = {
 }
 
 function Integration:HideWorldNames()
+    if InCombatLockdown() then return end
     local getCVar = C_CVar and C_CVar.GetCVar or GetCVar
     local setCVar = C_CVar and C_CVar.SetCVar or SetCVar
     if not getCVar or not setCVar then return end
@@ -425,6 +427,8 @@ function Integration:HideWorldNames()
 end
 
 function Integration:RestoreWorldNames()
+    -- Keep saved values until PLAYER_REGEN_ENABLED can restore protected CVars.
+    if InCombatLockdown() then return end
     local setCVar = C_CVar and C_CVar.SetCVar or SetCVar
     if not setCVar then return end
     for name, value in pairs(self.worldNameSettings or {}) do
@@ -435,7 +439,7 @@ end
 
 -- UI isolation hides unrelated top-level UI while preserving native input infrastructure.
 function Integration:BeginUIIsolation(...)
-    if self:IsEditModeActive() or self.hiddenUIFrames then return end
+    if self:IsEditModeActive() or InCombatLockdown() or self.hiddenUIFrames then return end
     self:HideWorldNames()
     self.hiddenUIFrames = {}
     self.hiddenUIFrameSet = setmetatable({}, { __mode = "k" })
@@ -790,7 +794,10 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
         callbacks = {}
         self.nativePanelHooks[panel] = callbacks
         panel:HookScript("OnShow", function(shownPanel)
-            if callbacks.onShow and not self:IsEditModeActive() then callbacks.onShow(shownPanel) end
+            if callbacks.onShow and not self:IsEditModeActive()
+                and (not InCombatLockdown() or UI:CanPresentInCombat(shownPanel)) then
+                callbacks.onShow(shownPanel)
+            end
         end)
         panel:HookScript("OnHide", function(hiddenPanel)
             if callbacks.onHide then callbacks.onHide(hiddenPanel) end
@@ -798,12 +805,18 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
     end
     callbacks.onShow = onShow
     callbacks.onHide = onHide
-    if panel:IsShown() and onShow and UI.nativeChrome and not self:IsEditModeActive() then onShow(panel) end
+    if panel:IsShown() and onShow and UI.nativeChrome
+        and not self:IsEditModeActive()
+        and (not InCombatLockdown() or UI:CanPresentInCombat(panel)) then onShow(panel) end
     return true
 end
 
 function Integration:InstallCharacterFrameHooks()
-    self:InstallNativePanelHooks(CharacterFrame, nil, function()
+    self:InstallNativePanelHooks(CharacterFrame, function(panel)
+        self:BeginUIIsolation(panel)
+        self.native = true
+        UI:ShowNativeChrome(panel.activeSubframe, "character")
+    end, function()
         self.native = false
         UI:HideNativeChrome()
         self:ScheduleUIIsolationRestore()
@@ -860,7 +873,7 @@ end
 -- Adopt native visibility after its handlers finish; never replay the bag shortcut.
 function Integration:PresentNativeInventory()
     if self:IsEditModeActive() then return end
-    if not self.ready or InCombatLockdown() or self.suppress then return end
+    if not self.ready or self.suppress then return end
     local panel = self:GetInteractionPanel()
     -- A wheel selection opens the backpack before focusing Character. Its
     -- deferred bag callback must not replace the final native selection.
@@ -896,6 +909,7 @@ function Integration:PresentNativeInventory()
     local preserved = self:GetNativeBagFrames()
     if panel then preserved[#preserved + 1] = panel end
     for _, frame in ipairs(preserved) do self:ReleaseUIIsolationFrame(frame) end
+    if InCombatLockdown() and not UI:CanPresentInCombat(UI:GetNativePanel("inventory"), true) then return end
     self:BeginUIIsolation(unpack(preserved))
     self.native = true
     UI:ShowNativeChrome("inventory")
@@ -904,7 +918,7 @@ end
 
 function Integration:QueueNativeInventory(bagsClosing)
     if self:IsEditModeActive() then return end
-    if not self.ready or self.suppress or InCombatLockdown() then return end
+    if not self.ready or self.suppress then return end
     if bagsClosing and self.interactions.MERCHANT_SHOW then self.merchantBagClosePending = true end
     if self.nativeInventoryPending then return end
     self.nativeInventoryPending = true
@@ -1009,11 +1023,13 @@ function Integration:InstallHooks()
             end
         end)
     end
+    self:InstallCharacterFrameHooks()
     self:InstallPlayerSpellsHooks()
     self:InstallMapHooks()
     for _, frame in ipairs(self:GetNativeBagFrames()) do
         self:InstallNativePanelHooks(frame, function(panel)
             if self.native then self:ReleaseUIIsolationFrame(panel) end
+            self:QueueNativeInventory()
         end,
             function() self:QueueNativeInventory(true) end)
     end
@@ -1107,8 +1123,10 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
     elseif event == "BANKFRAME_CLOSED" then
         Integration:BankClosed()
     elseif event == "PLAYER_REGEN_DISABLED" then
-        Integration:Close()
+        -- Keep menu fitting and the backdrop, but release unrelated UI isolation.
+        Integration:EndUIIsolation()
     elseif event == "PLAYER_REGEN_ENABLED" then
+        for panel in pairs(NS.Menus.opening or {}) do NS.Menus:RevealOpening(panel) end
         UI:UpdateControllerBindings()
         UI:RestoreMenuFades()
         if UI.pendingNativeRestore then UI:HideNativeChrome() end
@@ -1116,6 +1134,15 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
         elseif NS.NativeBags.restorePending then NS.NativeBags:Restore() end
         Integration:EndUIIsolation()
         Integration:InstallNativeGamepadHooks()
+        if UI.nativeChrome and UI.nativeChrome:IsShown() then
+            local preserved = Integration:GetNativeBagFrames()
+            local panel = UI:GetNativePanel()
+            if panel then preserved[#preserved + 1] = panel end
+            Integration:BeginUIIsolation(unpack(preserved))
+            UI:ApplyNativeVariant()
+        else
+            NS.Menus:SchedulePresentationCheck()
+        end
         Data:ScheduleRefresh()
     elseif event == "GOSSIP_CLOSED" then
         Integration.interactions[Enum.PlayerInteractionType.Gossip] = nil

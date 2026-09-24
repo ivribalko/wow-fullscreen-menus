@@ -122,7 +122,7 @@ end
 function Menus:Open(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or (InCombatLockdown() and not ui:CanPresentInCombat(panel)) or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel)
         or not panel:IsVisible() then return end
     -- A fading-out snapshot can remain visible until its short transition finishes.
@@ -156,9 +156,10 @@ end
 function Menus:QueueOpen(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or InCombatLockdown() or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or (InCombatLockdown() and not ui:CanPresentInCombat(panel)) or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel) or not panel:IsVisible()
         or integration.hiddenUIFrameSet and integration.hiddenUIFrameSet[panel] then return end
+    if InCombatLockdown() then self:Open(panel); return end
     if ui.genericMenu == panel and ui.nativeChrome and ui.nativeChrome:IsShown() then
         ui:LayoutNativePanel()
         return
@@ -183,6 +184,7 @@ end
 function Menus:RevealOpening(panel)
     local opening = self.opening and self.opening[panel]
     if not opening then return end
+    if InCombatLockdown() and panel:IsProtected() then return end
     self.opening[panel] = nil
     if not NS.UI.menuFadeAlphas or not NS.UI.menuFadeAlphas[panel] then
         panel:SetAlpha(opening.alpha)
@@ -196,7 +198,7 @@ function Menus:SchedulePresentationCheck()
     C_Timer.After(0, function()
         self.presentationCheckPending = nil
         local ui, integration = NS.UI, NS.Integration
-        if integration:IsEditModeActive() or InCombatLockdown() or integration.suppress or integration.restoringUI
+        if integration:IsEditModeActive() or integration.suppress or integration.restoringUI
             or not ui.nativeChrome or ui.nativeChrome:IsShown() then return end
         for panel in pairs(self.watched) do
             if panel:IsVisible() then

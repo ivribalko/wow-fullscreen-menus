@@ -4,8 +4,33 @@ local _, NS = ...
 local Bags = { saved = {}, concealed = {} }
 NS.NativeBags = Bags
 
+-- Mouse and opacity changes must leave protected controls untouched in combat.
+function Bags:CanChangeVisibility(frame)
+    if frame:IsForbidden() then return false end
+    if not InCombatLockdown() then return true end
+    if frame:IsProtected() then return false end
+    for _, child in ipairs({ frame:GetChildren() }) do
+        if not self:CanChangeVisibility(child) then return false end
+    end
+    return true
+end
+
+-- Pane switching touches both the interaction and all inventory controls.
+function Bags:CanSwitchPanesInCombat()
+    local panel = NS.Integration:GetInteractionPanel()
+    if panel and not self:CanChangeVisibility(panel) then return false end
+    for frame in pairs(self.concealed) do
+        if not self:CanChangeVisibility(frame) then return false end
+    end
+    for _, frame in ipairs(NS.Integration:GetNativeBagFrames()) do
+        if frame ~= ContainerFrameContainer and not self:CanChangeVisibility(frame) then return false end
+    end
+    return true
+end
+
 -- Conceal the inactive surface without firing native OnHide interaction handlers.
 function Bags:Reveal(frame)
+    if not self:CanChangeVisibility(frame) then return end
     local saved = self.concealed[frame]
     if not saved then return end
     frame:SetAlpha(saved.alpha)
@@ -14,7 +39,7 @@ function Bags:Reveal(frame)
 end
 
 function Bags:Conceal(frame)
-    if frame:IsForbidden() then return end
+    if not self:CanChangeVisibility(frame) then return end
     local saved = self.concealed[frame]
     if not saved then
         saved = { alpha = frame:GetAlpha(), mouse = {} }
@@ -31,7 +56,7 @@ function Bags:Conceal(frame)
 end
 
 function Bags:UpdatePane()
-    if InCombatLockdown() then return end
+    if InCombatLockdown() and not self:CanSwitchPanesInCombat() then return end
     local ui = NS.UI
     local panel = NS.Integration:GetInteractionPanel()
     if not ui.nativeChrome or not ui.nativeChrome:IsShown() or ui.nativeChromeMode ~= "inventory" then panel = nil end
@@ -59,7 +84,8 @@ function Bags:UpdatePane()
 end
 
 function Bags:SelectPane(inventory, fromNativeFocus)
-    if InCombatLockdown() then return end
+    if InCombatLockdown() and (not self:CanSwitchPanesInCombat()
+        or not NS.UI:CanPresentInCombat(NS.UI:GetNativePanel())) then return end
     NS.UI:RestoreMenuFades()
     self.inventorySelected = inventory
     NS.UI:ClearItemTooltip()
@@ -74,7 +100,10 @@ function Bags:SelectPane(inventory, fromNativeFocus)
 end
 
 function Bags:Close()
-    if InCombatLockdown() then self.closePending = true; return end
+    if InCombatLockdown() and (not self:CanLayoutInCombat() or not self:CanSwitchPanesInCombat()) then
+        self.closePending = true
+        return
+    end
     self.closePending = nil
     self:Restore()
     for frame in pairs(self.concealed) do self:Reveal(frame) end
@@ -99,8 +128,20 @@ function Bags:Schedule()
     end)
 end
 
+-- A bag grid may be fitted in combat only when every affected frame is unprotected.
+function Bags:CanLayoutInCombat()
+    for frame in pairs(self.saved) do
+        if frame:IsForbidden() or frame:IsProtected() then return false end
+    end
+    for _, frame in ipairs(NS.Integration:GetNativeBagFrames()) do
+        if frame ~= ContainerFrameContainer and frame:IsShown()
+            and (frame:IsForbidden() or frame:IsProtected()) then return false end
+    end
+    return true
+end
+
 function Bags:Restore()
-    if InCombatLockdown() then self.restorePending = true; return end
+    if InCombatLockdown() and not self:CanLayoutInCombat() then self.restorePending = true; return end
     self.restorePending = nil
     self.updating = true
     for frame, saved in pairs(self.saved) do
@@ -115,7 +156,8 @@ function Bags:Restore()
 end
 
 function Bags:Layout()
-    if NS.Integration:IsEditModeActive() or InCombatLockdown() or self.updating then return end
+    if NS.Integration:IsEditModeActive() or self.updating then return end
+    if InCombatLockdown() and not self:CanLayoutInCombat() then return end
     self:UpdatePane()
     if not self:IsActive() then self:Restore(); return end
     if self.layoutApplied then

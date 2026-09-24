@@ -105,7 +105,8 @@ function UI:FadeNativeMenuIn(instant)
         end
     end
     for _, frame in ipairs(frames) do
-        if not frame:IsForbidden() and frame:IsVisible() and not self.menuFadeAlphas[frame] then
+        if not frame:IsForbidden() and not (InCombatLockdown() and frame:IsProtected())
+            and frame:IsVisible() and not self.menuFadeAlphas[frame] then
             local opening = NS.Menus.opening and NS.Menus.opening[frame]
             local alpha = opening and opening.alpha or frame:GetAlpha()
             if alpha > 0 then
@@ -304,7 +305,7 @@ function UI:InitializeNativeChrome()
 end
 
 function UI:ApplyNativeVariant()
-    if InCombatLockdown() then return end
+    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel(), isStorage(self.nativeChromeMode)) then return end
     NS.NativeBags:Layout()
     self:LayoutNativeBackground(self.nativeChromeTab)
     self:SetNativeBlackoutHidden(true)
@@ -313,11 +314,12 @@ function UI:ApplyNativeVariant()
     self:ScheduleNativePanelLayout()
 end
 
-function UI:GetNativePanel()
-    if self.nativeChromeMode == "generic" then return self.genericMenu end
-    if self.nativeChromeMode == "map" then return WorldMapFrame end
-    if self.nativeChromeMode == "talents" then return PlayerSpellsFrame end
-    if isStorage(self.nativeChromeMode) then
+function UI:GetNativePanel(mode)
+    mode = mode or self.nativeChromeMode
+    if mode == "generic" then return self.genericMenu end
+    if mode == "map" then return WorldMapFrame end
+    if mode == "talents" then return PlayerSpellsFrame end
+    if isStorage(mode) then
         if NS.NativeBags.interaction and not NS.NativeBags.inventorySelected then
             return NS.NativeBags.interaction
         end
@@ -441,8 +443,18 @@ local function applyPanelPlacement(panel, scale, point, area, x, y)
     panel:SetPoint(point, area, "CENTER", x, y)
 end
 
+-- Only unprotected panels and saved geometry may be fitted during combat.
+function UI:CanPresentInCombat(panel, inventory)
+    if panel then
+        if panel:IsForbidden() or panel:IsProtected() then return false end
+    elseif not inventory or not NS.NativeBags:CanLayoutInCombat() then return false end
+    local state = self.nativePanelLayout
+    return not state or not state.panel:IsProtected()
+end
+
 function UI:LayoutNativePanel()
-    if NS.Integration:IsEditModeActive() or InCombatLockdown() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
+    if NS.Integration:IsEditModeActive() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
+    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel()) then return end
     if not self.nativeChrome or not self.nativeChrome:IsShown() then return end
     self:UpdateNativePanelArea()
     local panel = self:GetNativePanel()
@@ -554,10 +566,12 @@ function UI:SetNativeBlackoutHidden(hidden)
     local blackout = panel and panel.BlackoutFrame
     local state = self.nativeBlackoutState
     if state and (not hidden or state.frame ~= blackout) then
+        if InCombatLockdown() and state.frame:IsProtected() then return end
         state.frame:SetAlpha(state.alpha)
         self.nativeBlackoutState = nil
     end
     if hidden and blackout and not self.nativeBlackoutState then
+        if InCombatLockdown() and blackout:IsProtected() then return end
         self.nativeBlackoutState = { frame = blackout, alpha = blackout:GetAlpha() }
         blackout:SetAlpha(0)
     end
@@ -628,7 +642,10 @@ function UI:ResizeNativeChrome()
 end
 
 function UI:ShowNativeChrome(nativeTab, mode)
-    if NS.Integration:IsEditModeActive() or InCombatLockdown() then return end
+    if NS.Integration:IsEditModeActive() then return end
+    local requestedMode = mode or (nativeTab == "map" and "map"
+        or isStorage(nativeTab) and nativeTab or "character")
+    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel(requestedMode), isStorage(requestedMode)) then return end
     local switching = self.menuSessionActive
     if switching then self:RestoreMenuFades() end
     if mode ~= "generic" and self.genericMenu then
@@ -657,7 +674,8 @@ function UI:HideNativeChrome()
     self:RestoreMenuFades()
     NS.NativeBags:Close()
     local state = self.nativePanelLayout
-    if InCombatLockdown() and (state or self.nativeBlackoutState) then
+    if InCombatLockdown() and ((state and state.panel:IsProtected())
+        or (self.nativeBlackoutState and self.nativeBlackoutState.frame:IsProtected())) then
         self.pendingNativeRestore = true
         if self.nativeChrome then self.nativeChrome:Hide() end
         self:SetNativeBackgroundShown(false)
