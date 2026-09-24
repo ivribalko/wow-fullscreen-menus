@@ -71,13 +71,13 @@ combat = true
 local shown, hidden = 0, 0
 Integration:InstallNativePanelHooks(protected, function() shown = shown + 1 end, function() hidden = hidden + 1 end)
 protected.hooks.OnShow(protected)
-assert(shown == 0, 'protected show callback ran during combat')
+assert(shown == 2, 'protected menu was excluded from combat presentation')
 protected.hooks.OnHide(protected)
 assert(hidden == 1, 'hide cleanup skipped during combat')
 Integration:InstallNativePanelHooks(safe, function() shown = shown + 1 end)
-assert(shown == 1, 'already visible unprotected panel was not adopted')
+assert(shown == 3, 'already visible unprotected panel was not adopted')
 safe.hooks.OnShow(safe)
-assert(shown == 2)
+assert(shown == 4)
 
 -- Every menu family can take the combat path without native actions or binding writes.
 local calls = {}
@@ -106,11 +106,16 @@ end
 assert(calls.Show == 6 and calls.LayoutNativePanel == 6)
 UI.nativePanelLayout = { panel = protected }
 UI:ShowNativeChrome('map')
-assert(calls.Show == 6, 'protected previous geometry replaced')
+assert(calls.Show == 7 and UI.nativePanelLayout.panel == protected, 'previous protected geometry was discarded')
 UI.nativePanelLayout = nil
 safe.protected = true
-UI:ShowNativeChrome('map')
-assert(calls.Show == 6, 'protected target presented')
+for _, mode in ipairs({ 'map', 'character', 'talents', 'generic', 'inventory', 'bank' }) do
+    if mode == 'generic' then UI.genericMenu = safe end
+    UI.pendingNativeRestore = true
+    UI:ShowNativeChrome(mode, mode)
+    assert(UI.nativeChromeMode == mode and not UI.pendingNativeRestore)
+end
+assert(calls.Show == 13 and calls.SetNativeBackgroundShown == 13, 'protected menu lost its backdrop')
 safe.protected = false
 
 -- A protected child prevents pane opacity/mouse changes; a protected bag prevents grid fitting.
@@ -156,6 +161,16 @@ scale, anchor = 1, nil
 UI:LayoutNativePanel()
 assert(scale == 1 and anchor == nil)
 safe.protected = false
+
+-- Direct restoration and anchor resizing also skip protected geometry.
+methods(uiSource, 'function UI:RestoreNativePanelLayout()', 'function UI:GetNativePanelBounds(')
+UI.nativePanelLayout = { panel = protected }
+UI:RestoreNativePanelLayout()
+assert(UI.nativePanelLayout.panel == protected)
+methods(uiSource, 'local function resizeSafeArea(', 'function UI:ShowNativeChrome(')
+UI:ResizeNativeChrome() -- UIParent deliberately lacks geometry methods: none may run here.
+assert(UI.nativePanelLayout.panel == protected)
+UI.nativePanelLayout = { panel = safe }
 
 -- Closing an unprotected menu restores immediately; protected geometry waits.
 Bags.Close = function() end

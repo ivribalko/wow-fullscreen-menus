@@ -305,7 +305,6 @@ function UI:InitializeNativeChrome()
 end
 
 function UI:ApplyNativeVariant()
-    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel(), isStorage(self.nativeChromeMode)) then return end
     NS.NativeBags:Layout()
     self:LayoutNativeBackground(self.nativeChromeTab)
     self:SetNativeBlackoutHidden(true)
@@ -346,6 +345,7 @@ function UI:RestoreNativePanelLayout()
     local state = self.nativePanelLayout
     if not state then return end
     local panel = state.panel
+    if InCombatLockdown() and panel:IsProtected() then return end
     self.restoringNativePanelLayout = true
     panel:SetScale(state.scale)
     panel:ClearAllPoints()
@@ -637,19 +637,19 @@ end
 
 function UI:ResizeNativeChrome()
     if not self.nativeChrome then return end
+    -- Resizing an anchor can move a protected menu indirectly.
+    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel(), isStorage(self.nativeChromeMode)) then return end
     resizeSafeArea(self.nativeChrome)
     self:LayoutNativePanel()
 end
 
 function UI:ShowNativeChrome(nativeTab, mode)
     if NS.Integration:IsEditModeActive() then return end
-    local requestedMode = mode or (nativeTab == "map" and "map"
-        or isStorage(nativeTab) and nativeTab or "character")
-    if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel(requestedMode), isStorage(requestedMode)) then return end
     local switching = self.menuSessionActive
     if switching then self:RestoreMenuFades() end
     if mode ~= "generic" and self.genericMenu then
         self:HideNativeChrome()
+        self.genericMenu = nil
     end
     self:InitializeNativeChrome()
     self:ClearItemTooltip()
@@ -662,6 +662,8 @@ function UI:ShowNativeChrome(nativeTab, mode)
     if self.nativeChromeMode == "map" then self:RequestMapTabs() end
     self:ResizeNativeChrome()
     self.nativeChrome:Show()
+    -- An open presentation owns deferred geometry cleanup after combat.
+    self.pendingNativeRestore = nil
     self:UpdateControllerBindings()
     self:ApplyNativeVariant()
     self.menuSessionActive = true

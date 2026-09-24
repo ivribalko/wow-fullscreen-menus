@@ -115,7 +115,6 @@ function Integration:ObserveNativeGamepadFocus(manager)
     if self:IsEditModeActive() or self:IsActionBarEditing() or not UI.nativeChrome then return end
     local active = manager:GetActiveFrame()
     if not active or not active:IsShown() then return end
-    if InCombatLockdown() and not UI:CanPresentInCombat(active) then return end
     local bags = NS.NativeBags
     if bags.interaction then
         local inventory = active == ContainerFrameCombinedBags
@@ -333,7 +332,7 @@ function Integration:QueueBankOpen()
         --@alpha@
         self:TraceBank("QueueBankOpen:callback")
         --@end-alpha@
-        if not self.ready or InCombatLockdown() or not Data.bankOpen then return end
+        if not self.ready or not Data.bankOpen then return end
         self:ReleaseUIIsolationFrame(BankFrame)
         self:PresentNativeInventory()
     end)
@@ -358,7 +357,6 @@ function Integration:QueueInteractionOpen()
         self.interactionOpenPending = nil
         local panel = self:GetInteractionPanel()
         if not self.ready or not panel then return end
-        if InCombatLockdown() and not UI:CanPresentInCombat(panel) then return end
         self:ReleaseUIIsolationFrame(panel)
         self:PresentNativeInventory()
     end)
@@ -384,6 +382,7 @@ end
 -- captured from the UI that Fullscreen Menus replaced.
 function Integration:ReleaseUIIsolationFrame(frame)
     if not frame or not self.hiddenUIFrameSet or not self.hiddenUIFrameSet[frame] then return end
+    if InCombatLockdown() and frame:IsProtected() then return end
     UI:CancelFade(frame)
     local alpha = self.hiddenUIAlphas and self.hiddenUIAlphas[frame]
     if alpha then pcall(frame.SetAlpha, frame, alpha); self.hiddenUIAlphas[frame] = nil end
@@ -794,8 +793,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
         callbacks = {}
         self.nativePanelHooks[panel] = callbacks
         panel:HookScript("OnShow", function(shownPanel)
-            if callbacks.onShow and not self:IsEditModeActive()
-                and (not InCombatLockdown() or UI:CanPresentInCombat(shownPanel)) then
+            if callbacks.onShow and not self:IsEditModeActive() then
                 callbacks.onShow(shownPanel)
             end
         end)
@@ -806,8 +804,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
     callbacks.onShow = onShow
     callbacks.onHide = onHide
     if panel:IsShown() and onShow and UI.nativeChrome
-        and not self:IsEditModeActive()
-        and (not InCombatLockdown() or UI:CanPresentInCombat(panel)) then onShow(panel) end
+        and not self:IsEditModeActive() then onShow(panel) end
     return true
 end
 
@@ -909,7 +906,6 @@ function Integration:PresentNativeInventory()
     local preserved = self:GetNativeBagFrames()
     if panel then preserved[#preserved + 1] = panel end
     for _, frame in ipairs(preserved) do self:ReleaseUIIsolationFrame(frame) end
-    if InCombatLockdown() and not UI:CanPresentInCombat(UI:GetNativePanel("inventory"), true) then return end
     self:BeginUIIsolation(unpack(preserved))
     self.native = true
     UI:ShowNativeChrome("inventory")

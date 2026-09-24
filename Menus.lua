@@ -122,7 +122,7 @@ end
 function Menus:Open(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or (InCombatLockdown() and not ui:CanPresentInCombat(panel)) or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel)
         or not panel:IsVisible() then return end
     -- A fading-out snapshot can remain visible until its short transition finishes.
@@ -156,7 +156,7 @@ end
 function Menus:QueueOpen(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or (InCombatLockdown() and not ui:CanPresentInCombat(panel)) or integration.suppress or integration.restoringUI
+    if integration:IsEditModeActive() or not ui.nativeChrome or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel) or not panel:IsVisible()
         or integration.hiddenUIFrameSet and integration.hiddenUIFrameSet[panel] then return end
     if InCombatLockdown() then self:Open(panel); return end
