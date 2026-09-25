@@ -145,7 +145,9 @@ end
 
 local function measure(actor)
     if actor.bounds or not actor:IsLoaded() then return end
-    if actor.IsGeoReady and not actor:IsGeoReady() then return end
+    -- Creature-display actors can stay non-geo-ready after loading. Their
+    -- validated bounds are sufficient; dressed players still wait for equipment.
+    if actor.unit == "player" and actor.IsGeoReady and not actor:IsGeoReady() then return end
     actor:SetUseCenterForOrigin(false, false, false)
     actor:SetScale(Layout.modelScale)
     actor:SetPitch(0)
@@ -179,6 +181,33 @@ function Models:PositionModels()
 end
 
 --@alpha@
+-- Capture stalled pairs too; successful projection samples cannot explain missing models.
+function Models:TraceLoading()
+    if not NS.Data or not NS.Data.db then return end
+    local now = GetTime()
+    if self.loadingGeneration ~= self.generation then
+        self.loadingGeneration, self.loadingSamples, self.loadingNext = self.generation, 0, now + 1
+    end
+    if self.loadingSamples >= 4 or now < self.loadingNext then return end
+    self.loadingSamples = self.loadingSamples + 1
+    self.loadingNext = now + 1
+    local entry = { fitted = self.cameraDistance ~= nil,
+        frameSize = { self.root:GetWidth(), self.root:GetHeight() } }
+    for _, role in ipairs({ "player", "npc" }) do
+        local model = self[role]
+        entry[role] = { bound = model.unit ~= nil, loaded = model:IsLoaded(),
+            geometryReady = model.IsGeoReady and model:IsGeoReady() or false,
+            measured = model.bounds ~= nil, loader = model.loaderState }
+    end
+    local trace = NS.Data.db.modelLoadingDiagnostics
+    if type(trace) ~= "table" then
+        trace = { entries = {} }
+        NS.Data.db.modelLoadingDiagnostics = trace
+    end
+    trace.entries[#trace.entries + 1] = entry
+    if #trace.entries > 16 then table.remove(trace.entries, 1) end
+end
+
 -- Numeric world positions and native projected ground points verify alignment.
 function Models:TraceProjection()
     if not NS.Data or not NS.Data.db or not self.cameraDistance then return end
@@ -328,6 +357,9 @@ function Models:Hide()
             model.bounds, model.sideOffset = nil, nil
             model.guid = nil
             model.unit = nil
+            --@alpha@
+            model.loaderState = nil
+            --@end-alpha@
             model.facing = model.defaultFacing
             model.emoteUntil, model.nextEmote, model.pendingEmoteChoices = nil, nil, nil
         end
@@ -347,6 +379,9 @@ local function bind(model, unit, guid)
     else
         ok, success = pcall(model.SetModelByUnitCreatureDisplayID, model, unit)
     end
+    --@alpha@
+    model.loaderState = not ok and "error" or success == false and "rejected" or "accepted"
+    --@end-alpha@
     if ok and success ~= false then
         model.guid = guid
         measure(model)
@@ -416,6 +451,9 @@ function Models:Update()
         if model.emoteUntil and now >= model.emoteUntil then stand(model) end
     end
     self:FitPair()
+    --@alpha@
+    self:TraceLoading()
+    --@end-alpha@
     local context = table.concat({ panel:GetName(), NS.UI.nativeChromeMode or "",
         tostring(panel.selectedTab or ""), tostring(NS.NativeBags.inventorySelected or false) }, ":")
     if self.pendingEmote or self.emoteContext ~= context then

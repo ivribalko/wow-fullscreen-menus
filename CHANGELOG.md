@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Allowed loaded NPC conversation models to fit from valid bounds when their geometry-ready flag remains false, which otherwise kept both actors hidden.
+
+- Captured bounded model-loading diagnostics for conversations whose actors never reach a visible camera fit.
+
 - Supported the map's native fullscreen mode and restored addon fitting when returning to the windowed map.
 - Rechecked the effective fullscreen-map Circle binding after native setup and during map refresh so later footer activation cannot leave the cached close binding displaced.
 - Routed fullscreen-map Circle/Back directly through the native map-toggle binding to close it, and removed addon calls that rebuilt protected gamepad bindings during map layout.

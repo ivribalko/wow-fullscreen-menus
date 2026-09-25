@@ -65,7 +65,7 @@ Forever keeps its settings in its WTF directory. Keep SavedVariables, error capt
 
 Use the native `/reload` command to reload the UI. Reopen menus through their normal shortcuts after reloading.
 
-Alpha builds retain up to 128 bank lifecycle and inventory-routing snapshots in the character's `bankDiagnostics` SavedVariables entry. These record event names, interaction types, and UI state without player or item data. Source and alpha builds also retain up to 32 Fullscreen Menus protected-action blocks in `blockedActions`, including the action name, combat state, menu mode, and Lua stack. Source and alpha builds also retain up to 16 numeric model projection snapshots in `modelProjectionDiagnostics`, including the shared camera, actor bounds and positions, and native projected ground coordinates without unit identities or item data. A UI reload persists these captures. Diagnostic code are enclosed in `--@alpha@` / `--@end-alpha@` packager markers and excluded from packaged beta and release builds. Zipping raw source retains development behavior.
+Alpha builds retain up to 128 bank lifecycle and inventory-routing snapshots in the character's `bankDiagnostics` SavedVariables entry. These record event names, interaction types, and UI state without player or item data. Source and alpha builds also retain up to 32 Fullscreen Menus protected-action blocks in `blockedActions`, including the action name, combat state, menu mode, and Lua stack. Source and alpha builds also retain up to 16 numeric model projection snapshots in `modelProjectionDiagnostics`, including the shared camera, actor bounds and positions, and native projected ground coordinates without unit identities or item data. Source and alpha builds also retain up to 16 model-loading snapshots in `modelLoadingDiagnostics`, recording loader acceptance, actor readiness, measurement, and fit status without unit identities. A UI reload persists these captures. Diagnostic code are enclosed in `--@alpha@` / `--@end-alpha@` packager markers and excluded from packaged beta and release builds. Zipping raw source retains development behavior.
 
 ### Validation
 
@@ -97,7 +97,8 @@ The project is licensed under the [MIT License](LICENSE). World of Warcraft and 
 ## Repository Rules
 
 - Follow the global Codex rules in addition to these repository-specific instructions.
-- Enclose diagnostic code, calls, hooks, and timers in `--@alpha@` / `--@end-alpha@` markers so beta and release builds exclude them.
+- Enclose all debug logs and diagnostic code, including calls, hooks, timers, state, and cleanup, in `--@alpha@` / `--@end-alpha@` markers. Verify marker usage against [CurseForge's packaging requirements](https://support.curseforge.com/support/solutions/articles/9000197910-repository-keyword-substitutions) so diagnostics run only in source and alpha builds and are commented out in packaged beta and release builds.
+- Retain useful alpha-only diagnostics after troubleshooting when needed.
 - Always reuse shared spacing constants for layout gaps instead of duplicating literal spacing values.
 - Target the installed Forever beta interface version; use native handlers for inventory actions and retain native transaction confirmations.
 - Search WoW UI source when needed: https://github.com/Gethe/wow-ui-source
