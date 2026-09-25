@@ -45,6 +45,8 @@ The native alias opens the same inventory view:
 
 ## Appearance
 
+The map's native fullscreen mode retains native sizing and positioning while keeping the addon backdrop and UI isolation. Circle/Back closes the fullscreen map through the native map-toggle binding. Returning to the windowed map starts a fresh addon fit and restores native Back behavior.
+
 Fullscreen presentation is suspended during native Edit Mode. Entering Edit Mode restores menu and bag placement and the surrounding UI; menus use fullscreen presentation again when opened after leaving Edit Mode.
 
 Menu layout is measured once when a menu type opens. Content, prompt visibility, panel dimensions, and UI size changes do not trigger refitting while that menu remains open. Switching menu types or closing and reopening allows fresh fitting. Quest lists, quest details, and quest rewards share the opening conversation’s scale and top-left position until the conversation closes. Native repositioning restores the saved placement without refitting.

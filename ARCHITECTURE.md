@@ -2,6 +2,8 @@
 
 ## Folder layout
 
+The map's native `Maximize` and `Minimize` methods notify presentation after native sizing. A maximized map bypasses addon fitting and releases any cached windowed scale without invoking native display synchronization or gamepad binding refresh methods. Minimizing schedules a fresh fit after quest-log visibility updates finish. While the map is maximized, the addon routes Circle/Back to the native `TOGGLEWORLDMAP` command through its override-binding owner; windowed mode restores native Back behavior. Deferred layout completion and the existing map refresh check the effective Circle binding, repairing native footer overrides even when the cached menu mode is unchanged.
+
 - The root contains the addon manifest, bindings, and eight Lua modules loaded in dependency order.
 - `Assets` contains the addon icon source PNG and game-ready TGA referenced by the manifest.
 - `README.md` links to `AGENTS.md`, which contains usage documentation and repository rules.

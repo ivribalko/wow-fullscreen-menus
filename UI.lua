@@ -255,17 +255,30 @@ function UI:UpdateControllerBindings()
     local mode = not NS.Integration:IsEditModeActive() and not NS.Integration:IsActionBarEditing()
         and chrome:IsShown() and self.nativeChromeMode or nil
     local state = mode or "hidden"
-    local previous, following
+    local previous, following, closeMap
     if mode then
         previous = NS.Menus:GetForeverTriggerBinding(-1)
         following = NS.Menus:GetForeverTriggerBinding(1)
         state = state .. ":" .. (previous or "native") .. ":" .. (following or "native")
+        closeMap = mode == "map" and WorldMapFrame and WorldMapFrame:IsShown()
+            and WorldMapFrame:IsMaximized()
+        state = state .. (closeMap and ":closeMap" or "")
     end
-    if self.controllerBindingState == state then return end
+    if self.controllerBindingState == state then
+        -- Native footer activation can replace an override after map OnShow.
+        -- The desired mode alone does not prove Circle still closes the map.
+        local key = GAMEPAD_FACE_RIGHT or "PAD2"
+        if closeMap and GetBindingAction(key, true) ~= "TOGGLEWORLDMAP" then
+            SetOverrideBinding(chrome, true, key, "TOGGLEWORLDMAP")
+        end
+        return
+    end
     ClearOverrideBindings(chrome)
     self.controllerBindingState = state
     if previous then SetOverrideBinding(chrome, true, "PADLTRIGGER", previous) end
     if following then SetOverrideBinding(chrome, true, "PADRTRIGGER", following) end
+    -- Execute Blizzard's binding from hardware input, outside addon Lua callbacks.
+    if closeMap then SetOverrideBinding(chrome, true, GAMEPAD_FACE_RIGHT or "PAD2", "TOGGLEWORLDMAP") end
 end
 
 function UI:InitializeNativeChrome()
@@ -293,7 +306,10 @@ function UI:InitializeNativeChrome()
         self.mapTabRefreshElapsed = (self.mapTabRefreshElapsed or 0) + elapsed
         if self.mapTabRefreshElapsed < Layout.refreshInterval then return end
         self.mapTabRefreshElapsed = 0
-        if self.nativeChromeMode == "map" then self:RequestMapTabs() end
+        if self.nativeChromeMode == "map" then
+            self:RequestMapTabs()
+            self:UpdateControllerBindings()
+        end
         self:LayoutNativeBackground(self.nativeChromeTab)
         self:LayoutNativePanel()
         NS.NativeBags:Layout()
@@ -461,6 +477,19 @@ function UI:LayoutNativePanel()
     if not panel or not panel:IsShown() or panel:GetWidth() <= 0 or panel:GetHeight() <= 0 then return end
     local state = self.nativePanelLayout
     local menuType = self.nativeChromeTab or self.nativeChromeMode
+    if panel == WorldMapFrame and panel.IsMaximized and panel:IsMaximized() then
+        -- The native full map owns its size, anchors, and internal gamepad footer.
+        -- Drop the windowed fit without restoring obsolete windowed anchors.
+        if state and state.panel == panel then
+            self.layingOutNativePanel = true
+            panel:SetScale(state.scale)
+            self.nativePanelLayout = nil
+            self.layingOutNativePanel = nil
+        elseif state then
+            self:RestoreNativePanelLayout()
+        end
+        return
+    end
     if state and (state.panel ~= panel or state.menuType ~= menuType) then
         self:RestoreNativePanelLayout()
         state = nil
@@ -532,6 +561,7 @@ function UI:ScheduleNativePanelLayout()
     C_Timer.After(0, function()
         self.nativePanelLayoutPending = false
         self:LayoutNativePanel()
+        self:UpdateControllerBindings()
     end)
 end
 

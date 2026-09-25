@@ -935,6 +935,18 @@ end
 
 function Integration:InstallMapHooks()
     if not WorldMapFrame then return end
+    if not self.mapDisplayHooksInstalled then
+        self.mapDisplayHooksInstalled = true
+        for _, method in ipairs({ "Maximize", "Minimize" }) do
+            hooksecurefunc(WorldMapFrame, method, function()
+                if UI.nativeChromeMode ~= "map" then return end
+                -- Run after native sizing; Blizzard emits its events before sizing.
+                if WorldMapFrame:IsMaximized() then UI:LayoutNativePanel() end
+                UI:UpdateControllerBindings()
+                UI:ScheduleNativePanelLayout()
+            end)
+        end
+    end
     self:InstallNativePanelHooks(WorldMapFrame, function(panel)
         self:BeginUIIsolation(panel)
         UI:ShowNativeChrome("map")
