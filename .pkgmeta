@@ -7,6 +7,5 @@ ignore:
   - README.md
   - ARCHITECTURE.md
   - Assets/AddonIcon.png
-  - tools
   - dist
   - __pycache__

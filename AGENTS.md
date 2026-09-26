@@ -97,6 +97,7 @@ The project is licensed under the [MIT License](LICENSE). World of Warcraft and 
 ## Repository Rules
 
 - Follow the global Codex rules in addition to these repository-specific instructions.
+- Do not add tests to this repository.
 - Enclose all debug logs and diagnostic code, including calls, hooks, timers, state, and cleanup, in `--@alpha@` / `--@end-alpha@` markers. Verify marker usage against [CurseForge's packaging requirements](https://support.curseforge.com/support/solutions/articles/9000197910-repository-keyword-substitutions) so diagnostics run only in source and alpha builds and are commented out in packaged beta and release builds.
 - Retain useful alpha-only diagnostics after troubleshooting when needed.
 - Always reuse shared spacing constants for layout gaps instead of duplicating literal spacing values.
