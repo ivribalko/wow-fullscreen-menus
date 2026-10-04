@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed duplicate native bag closure from bank-dismissal cleanup to avoid disturbing gamepad bindings before the bank reopens.
+
 - Allowed loaded NPC conversation models to fit from valid bounds when their geometry-ready flag remains false, which otherwise kept both actors hidden.
 
 - Captured bounded model-loading diagnostics for conversations whose actors never reach a visible camera fit.

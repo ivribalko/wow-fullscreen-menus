@@ -227,7 +227,10 @@ function Integration:BankClosed()
         if isBankInteraction(kind) then self.interactions[kind] = nil end
     end
     if nativeBank then
-        self:CloseNative(true)
+        -- BankFrame's native OnHide owns bag closure and gamepad teardown.
+        -- Replaying CloseAllBags here can taint the binding stack used on reopen.
+        self.native = false
+        UI:HideNativeChrome()
         self:ScheduleUIIsolationRestore()
     end
     UI:LayoutModeTabs()
