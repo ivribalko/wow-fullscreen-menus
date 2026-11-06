@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rotated both NPC and player conversation models together with horizontal right-stick movement.
+
 - Removed fear/cowering from NPC conversation gestures, including narrated cowering and trembling.
 
 - Removed duplicate native bag closure from bank-dismissal cleanup to avoid disturbing gamepad bindings before the bank reopens.

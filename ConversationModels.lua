@@ -26,9 +26,8 @@ local emoteChance, emoteCooldown, emoteTimeout = 0.35, 3, 3
 local rotationDeadzone, rotationSpeed = 0.15, math.pi
 
 -- Read the mapped camera stick without taking ownership of native input bindings.
-function Models:RotateNPC(delta)
-    local model = self.npc
-    if not self.active or not model or not model.guid or not model:IsVisible()
+function Models:RotateModels(delta)
+    if not self.active or not self.npc or not self.player
         or not C_GamePad or not C_GamePad.GetDeviceMappedState
         or not C_GamePad.StickIndexToConfigName then return end
     local state = C_GamePad.GetDeviceMappedState()
@@ -38,8 +37,13 @@ function Models:RotateNPC(delta)
             local amount = math.abs(stick.x)
             if amount <= rotationDeadzone then return end
             local direction = stick.x < 0 and -1 or 1
-            model.facing = (model.facing + direction * (amount - rotationDeadzone)
-                / (1 - rotationDeadzone) * rotationSpeed * math.min(delta, 0.1)) % (2 * math.pi)
+            local rotation = direction * (amount - rotationDeadzone)
+                / (1 - rotationDeadzone) * rotationSpeed * math.min(delta, 0.1)
+            for _, model in ipairs({ self.npc, self.player }) do
+                if model.guid and model:IsVisible() then
+                    model.facing = (model.facing + rotation) % (2 * math.pi)
+                end
+            end
             self:PositionModels()
             return
         end
@@ -442,6 +446,7 @@ function Models:Update()
         self.npc.guid = nil
         self.npc.emoteUntil, self.npc.nextEmote, self.npc.pendingEmoteChoices = nil, nil, nil
         self.npc.facing = self.npc.defaultFacing
+        self.player.facing = self.player.defaultFacing
     end
     self.npcGUID = guid or self.npcGUID
     if guid then bind(self.npc, "npc", guid) end
@@ -482,7 +487,7 @@ function Models:Open(event)
         if not self.active then return end
         local elapsed = 0
         driver:SetScript("OnUpdate", function(_, delta)
-            self:RotateNPC(delta)
+            self:RotateModels(delta)
             elapsed = elapsed + delta
             if elapsed < 0.1 then return end
             elapsed = 0
