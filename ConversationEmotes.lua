@@ -16,7 +16,6 @@ local rules = {
     { ids = { 70, 83 }, cues = { "haha", "hahaha", "ha ha", "hehe", "funny", "hilarious", "what a joke" } },
     { ids = { 77, 186 }, cues = { "my condolences", "i am sorry", "i'm sorry", "i miss", "grief", "mourn", "heartbroken", "tragic", "tragedy", "sorrow" } },
     { ids = { 64, 74, 81 }, cues = { "how dare", "you fool", "traitor", "betrayed", "revenge", "vengeance", "furious", "you will pay" } },
-    { ids = { 225, 65 }, cues = { "i am afraid", "i'm afraid", "terrified", "frightened", "scared", "we are doomed", "save me", "help me" } },
     { ids = { 79, 65 }, cues = { "i beg", "i implore", "please help", "beg of you", "our only hope", "desperate", "i need your help" } },
     { ids = { 65, 186 }, cues = { "i wonder", "i don't know", "i do not know", "confused", "puzzling", "strange", "perhaps", "are you sure" } },
     { ids = { 185, 60 }, cues = { "i agree", "of course", "indeed", "certainly", "that's right", "that is right", "you are right" } },
@@ -39,7 +38,7 @@ local actions = {
     { 81, "shouts", "yells" }, { 82, "flexes" }, { 83, "blushes" },
     { 84, "points" }, { 113, "salutes" }, { 185, "nods" },
     { 186, "shakes his head", "shakes her head", "shakes their head" },
-    { 225, "cowers", "trembles" }, { 506, "sniffs" }, { 520, "reads" },
+    { 506, "sniffs" }, { 520, "reads" },
 }
 
 function Emotes:Normalize(text)

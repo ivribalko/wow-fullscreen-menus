@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed fear/cowering from NPC conversation gestures, including narrated cowering and trembling.
+
 - Removed duplicate native bag closure from bank-dismissal cleanup to avoid disturbing gamepad bindings before the bank reopens.
 
 - Allowed loaded NPC conversation models to fit from valid bounds when their geometry-ready flag remains false, which otherwise kept both actors hidden.
@@ -22,7 +24,7 @@
 
 - Concealed inactive menus during item reading, restored fullscreen placement on refocus, and excluded stack-split and confirmation dialogs from menu discovery.
 
-- Matched changing NPC prose against 31 expressive animations and randomly selected from up to five close candidates, preserving repeated-greeting suppression for both models. NPC dialogue gestures bypass chance and cooldown; player gestures retain their existing timing.
+- Matched changing NPC prose against 30 expressive animations and randomly selected from up to five close candidates, preserving repeated-greeting suppression for both models. NPC dialogue gestures bypass chance and cooldown; player gestures retain their existing timing.
 - Retained contextual emote requests until models finish loading and their cooldown expires.
 - Used native screen projection to fit and place both actors within their visible regions, correcting off-screen placement.
 - Placed conversation models in one native scene with a shared camera and collision-bound ground plane; fit opening poses without changing zoom during rotation.
