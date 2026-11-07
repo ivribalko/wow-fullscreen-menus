@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserved native barbershop presentation and its Reset, Accept, and Cancel buttons.
+
 - Rotated both NPC and player conversation models together with horizontal right-stick movement.
 
 - Removed fear/cowering from NPC conversation gestures, including narrated cowering and trembling.

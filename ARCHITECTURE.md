@@ -45,6 +45,7 @@ The map's native `Maximize` and `Minimize` methods notify presentation after nat
 - Secondary selectors remain visible in their native panels. Their native input handlers own navigation.
 - Forever isolates unrelated UI through alpha only, except for the minimap, which must be hidden to suppress client-rendered markers. Native gamepad focus frames are not hidden or quarantined.
 - UI isolation preserves Forever's `SmartNavigation`, `SoftCursor`, and `InputFunctionBindingButton_*` frames so native navigation and Circle/Back bindings stay active.
+- Barbershop visibility suspends addon presentation and UI isolation through the shared presentation gate. Its native frame and shared customization panel are excluded from discovery; load-on-demand hooks restore any active addon presentation when the barbershop opens.
 - UI isolation preserves item dialogs and confirmations. EnhanceQoL bag compatibility retains a narrow adapter for native frame ownership.
 - World-space names and enemy nameplates use temporary native display settings during UI isolation. Original values are restored on close and logout, including UI reload; failed restorations remain available for retry. The minimap is captured separately and hidden after its fade so client-rendered player and resource markers disappear; its original visibility and alpha are restored on close.
 

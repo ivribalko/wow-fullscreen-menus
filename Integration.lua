@@ -5,9 +5,10 @@ local Data, UI = NS.Data, NS.UI
 local Integration = { interactions = {}, suppress = false }
 NS.Integration = Integration
 
--- Keep native layout editing free of fullscreen presentation.
-function Integration:IsEditModeActive()
-    return EditModeManagerFrame and EditModeManagerFrame:IsEditModeActive() or false
+-- Native layout editing and barbershop customization own their screen presentation.
+function Integration:IsPresentationSuspended()
+    return (EditModeManagerFrame and EditModeManagerFrame:IsEditModeActive())
+        or (BarberShopFrame and BarberShopFrame:IsShown()) or false
 end
 
 -- Action binding overlays the current menu without changing its presentation.
@@ -15,7 +16,7 @@ function Integration:IsActionBarEditing()
     return GamepadActionBarEditFrame and GamepadActionBarEditFrame:IsShown() or false
 end
 
-function Integration:SuspendForEditMode()
+function Integration:SuspendPresentation()
     UI:HideNativeChrome()
     UI.menuSessionActive = nil
     NS.Menus.sessionTabs = nil
@@ -28,8 +29,17 @@ end
 function Integration:InstallEditModeHooks()
     if self.editModeHooksInstalled then return end
     self.editModeHooksInstalled = true
-    EventRegistry:RegisterCallback("EditMode.Enter", self.SuspendForEditMode, self)
-    if self:IsEditModeActive() then self:SuspendForEditMode() end
+    EventRegistry:RegisterCallback("EditMode.Enter", self.SuspendPresentation, self)
+    if self:IsPresentationSuspended() then self:SuspendPresentation() end
+end
+
+-- The native barbershop owns its fullscreen controls and shared customization panel.
+function Integration:InstallBarberShopHooks()
+    local panel = BarberShopFrame
+    if not panel or self.barberShopFrame == panel then return end
+    self.barberShopFrame = panel
+    panel:HookScript("OnShow", function() self:SuspendPresentation() end)
+    if panel:IsShown() and self.ready then self:SuspendPresentation() end
 end
 
 -- The spellbook's Bind and Edit Action Bar commands share this native editor.
@@ -112,7 +122,7 @@ end
 
 -- Native bindings own visibility; follow their final focus using presentation only.
 function Integration:ObserveNativeGamepadFocus(manager)
-    if self:IsEditModeActive() or self:IsActionBarEditing() or not UI.nativeChrome then return end
+    if self:IsPresentationSuspended() or self:IsActionBarEditing() or not UI.nativeChrome then return end
     local active = manager:GetActiveFrame()
     if not active or not active:IsShown() then return end
     local bags = NS.NativeBags
@@ -441,7 +451,7 @@ end
 
 -- UI isolation hides unrelated top-level UI while preserving native input infrastructure.
 function Integration:BeginUIIsolation(...)
-    if self:IsEditModeActive() or InCombatLockdown() or self.hiddenUIFrames then return end
+    if self:IsPresentationSuspended() or InCombatLockdown() or self.hiddenUIFrames then return end
     self:HideWorldNames()
     self.hiddenUIFrames = {}
     self.hiddenUIFrameSet = setmetatable({}, { __mode = "k" })
@@ -572,7 +582,7 @@ function Integration:ConstrainMode(mode)
 end
 
 function Integration:IsNativeContext()
-    if self:IsEditModeActive() or InCombatLockdown() or self.native then return true end
+    if self:IsPresentationSuspended() or InCombatLockdown() or self.native then return true end
     for kind in pairs(self.interactions) do
         if kind ~= "MERCHANT_SHOW" and kind ~= "TRADE_SHOW"
             and kind ~= Enum.PlayerInteractionType.Merchant
@@ -634,7 +644,7 @@ function Integration:AreNativeBagsShown()
 end
 
 function Integration:Open(tab)
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if self:IsNativeContext() and not (Data.bankOpen and not InCombatLockdown() and not self.native) then return end
     tab = self:ConstrainMode(tab)
 
@@ -645,7 +655,7 @@ function Integration:Open(tab)
 end
 
 function Integration:OpenTalents(tabID)
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if self:HasInteraction() then return self:Open("inventory") end
     if InCombatLockdown() then return end
 
@@ -699,7 +709,7 @@ function Integration:Toggle()
 end
 
 function Integration:OpenMap()
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if InCombatLockdown() then return end
     if self:HasInteraction() then return self:Open("inventory") end
 
@@ -714,7 +724,7 @@ function Integration:OpenMap()
 end
 
 function Integration:OpenNative(tab, mode)
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if InCombatLockdown() then return end
     tab = self:ConstrainMode(tab)
 
@@ -796,7 +806,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
         callbacks = {}
         self.nativePanelHooks[panel] = callbacks
         panel:HookScript("OnShow", function(shownPanel)
-            if callbacks.onShow and not self:IsEditModeActive() then
+            if callbacks.onShow and not self:IsPresentationSuspended() then
                 callbacks.onShow(shownPanel)
             end
         end)
@@ -807,7 +817,7 @@ function Integration:InstallNativePanelHooks(panel, onShow, onHide)
     callbacks.onShow = onShow
     callbacks.onHide = onHide
     if panel:IsShown() and onShow and UI.nativeChrome
-        and not self:IsEditModeActive() then onShow(panel) end
+        and not self:IsPresentationSuspended() then onShow(panel) end
     return true
 end
 
@@ -872,7 +882,7 @@ end
 
 -- Adopt native visibility after its handlers finish; never replay the bag shortcut.
 function Integration:PresentNativeInventory()
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if not self.ready or self.suppress then return end
     local panel = self:GetInteractionPanel()
     -- A wheel selection opens the backpack before focusing Character. Its
@@ -916,7 +926,7 @@ function Integration:PresentNativeInventory()
 end
 
 function Integration:QueueNativeInventory(bagsClosing)
-    if self:IsEditModeActive() then return end
+    if self:IsPresentationSuspended() then return end
     if not self.ready or self.suppress then return end
     if bagsClosing and self.interactions.MERCHANT_SHOW then self.merchantBagClosePending = true end
     if self.nativeInventoryPending then return end
@@ -928,7 +938,7 @@ function Integration:QueueNativeInventory(bagsClosing)
         -- Native Back closes inventory before focus returns to the merchant.
         -- Wait for all bag hides, then dismiss the remaining interaction.
         if closeMerchant and self.interactions.MERCHANT_SHOW and not self:AreNativeBagsShown()
-            and not self:IsEditModeActive() and not InCombatLockdown() then
+            and not self:IsPresentationSuspended() and not InCombatLockdown() then
             self:CloseServiceInteraction("merchant")
             return
         end
@@ -1104,6 +1114,7 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
     --@end-alpha@
     if event == "ADDON_LOADED" then
         if argument == addonName then Data:Initialize() end
+        Integration:InstallBarberShopHooks()
         local installer = loadOnDemandPanelInstallers[argument]
         if installer then installer() end
         Integration:InstallNativeGamepadHooks()
@@ -1113,6 +1124,7 @@ frame:SetScript("OnEvent", function(_, event, argument, secondArgument)
     elseif event == "PLAYER_LOGIN" then
         UI:Initialize()
         Integration:InstallEditModeHooks()
+        Integration:InstallBarberShopHooks()
         Integration:InstallActionBarEditHooks()
         Integration:ConfigureBagOwner()
         Integration:InstallHooks()

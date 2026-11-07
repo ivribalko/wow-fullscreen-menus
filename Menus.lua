@@ -13,6 +13,7 @@ end
 function Menus:IsExcluded(panel)
     while self:IsAccessible(panel) do
         if panel == LootFrame or panel == EditModeManagerFrame or panel == GamepadActionBarEditFrame
+            or panel == BarberShopFrame or panel == CharCustomizeFrame
             or panel == StackSplitFrame or panel == StaticPopup1 or panel == StaticPopup2
             or panel == StaticPopup3 or panel == StaticPopup4 then return true end
         panel = panel:GetParent()
@@ -122,7 +123,7 @@ end
 function Menus:Open(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or integration.suppress or integration.restoringUI
+    if integration:IsPresentationSuspended() or not ui.nativeChrome or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel)
         or not panel:IsVisible() then return end
     -- A fading-out snapshot can remain visible until its short transition finishes.
@@ -156,7 +157,7 @@ end
 function Menus:QueueOpen(panel)
     panel = self:GetMenuRoot(panel)
     local integration, ui = NS.Integration, NS.UI
-    if integration:IsEditModeActive() or not ui.nativeChrome or integration.suppress or integration.restoringUI
+    if integration:IsPresentationSuspended() or not ui.nativeChrome or integration.suppress or integration.restoringUI
         or not self:IsAccessible(panel) or self:IsExcluded(panel) or self:IsSpecialized(panel) or not panel:IsVisible()
         or integration.hiddenUIFrameSet and integration.hiddenUIFrameSet[panel] then return end
     if InCombatLockdown() then self:Open(panel); return end
@@ -198,7 +199,7 @@ function Menus:SchedulePresentationCheck()
     C_Timer.After(0, function()
         self.presentationCheckPending = nil
         local ui, integration = NS.UI, NS.Integration
-        if integration:IsEditModeActive() or integration.suppress or integration.restoringUI
+        if integration:IsPresentationSuspended() or integration.suppress or integration.restoringUI
             or not ui.nativeChrome or ui.nativeChrome:IsShown() then return end
         for panel in pairs(self.watched) do
             if panel:IsVisible() then

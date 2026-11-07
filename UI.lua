@@ -252,7 +252,7 @@ end
 function UI:UpdateControllerBindings()
     local chrome = self.nativeChrome
     if not chrome or InCombatLockdown() then return end
-    local mode = not NS.Integration:IsEditModeActive() and not NS.Integration:IsActionBarEditing()
+    local mode = not NS.Integration:IsPresentationSuspended() and not NS.Integration:IsActionBarEditing()
         and chrome:IsShown() and self.nativeChromeMode or nil
     local state = mode or "hidden"
     local previous, following, closeMap
@@ -469,7 +469,7 @@ function UI:CanPresentInCombat(panel, inventory)
 end
 
 function UI:LayoutNativePanel()
-    if NS.Integration:IsEditModeActive() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
+    if NS.Integration:IsPresentationSuspended() or self.layingOutNativePanel or self.restoringNativePanelLayout then return end
     if InCombatLockdown() and not self:CanPresentInCombat(self:GetNativePanel()) then return end
     if not self.nativeChrome or not self.nativeChrome:IsShown() then return end
     self:UpdateNativePanelArea()
@@ -674,7 +674,7 @@ function UI:ResizeNativeChrome()
 end
 
 function UI:ShowNativeChrome(nativeTab, mode)
-    if NS.Integration:IsEditModeActive() then return end
+    if NS.Integration:IsPresentationSuspended() then return end
     local switching = self.menuSessionActive
     if switching then self:RestoreMenuFades() end
     if mode ~= "generic" and self.genericMenu then
