@@ -3,6 +3,11 @@ local _, NS = ...
 -- Layout centralizes shared presentation dimensions and timing.
 NS.Layout = {
     edgeMargin = 14,
+    promptIconSize = 24,
+    promptPadding = 10,
+    promptLabelGap = 5,
+    promptGap = 15,
+    promptRowGap = 11,
     modelSideInset = 0.02,
     modelBottomInset = 0.08,
     modelWidth = 0.28,

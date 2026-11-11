@@ -345,6 +345,19 @@ local function createModel(scene, facing, side)
     return model
 end
 
+-- Reward previews dress the existing conversation actor without opening another panel.
+function Models:CanPreviewReward()
+    local player = self.player
+    return self.active and self.root and self.root:IsVisible()
+        and player and player.guid == UnitGUID("player") and player:IsVisible()
+        and player:IsLoaded() and (not player.IsGeoReady or player:IsGeoReady())
+end
+
+function Models:PreviewReward(link)
+    if not self:CanPreviewReward() or not C_Item.IsDressableItemByID(link) then return false end
+    return self.player:TryOn(link) == Enum.ItemTryOnReason.Success
+end
+
 function Models:Hide()
     self.generation = self.generation + 1
     self.active, self.npcGUID, self.missingSince = nil, nil, nil
