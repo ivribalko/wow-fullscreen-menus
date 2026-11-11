@@ -12,7 +12,9 @@ local function GetFooter()
 end
 
 local function RewardsHaveFocus(footer)
-    if not UIParent:IsVisible() or not QuestFrameRewardPanel or not QuestFrameRewardPanel:IsVisible()
+    local accepting = QuestFrameDetailPanel and QuestFrameDetailPanel:IsVisible()
+    local claiming = QuestFrameRewardPanel and QuestFrameRewardPanel:IsVisible()
+    if not UIParent:IsVisible() or not (accepting or claiming)
         or not QuestInfoFrame or QuestInfoFrame.questLog
         or not footer or not footer.isShown or not footer.inputLegend
         or not footer.inputLegend:IsVisible() or GetCurrentKeyBoardFocus() then return false end

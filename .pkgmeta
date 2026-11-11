@@ -5,7 +5,6 @@ manual-changelog: CHANGELOG.md
 ignore:
   - AGENTS.md
   - README.md
-  - ARCHITECTURE.md
   - Assets/AddonIcon.png
   - dist
   - __pycache__
