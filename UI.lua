@@ -447,7 +447,9 @@ end
 -- Avoid invalidating native button/text geometry on unchanged periodic refreshes.
 local function applyPanelPlacement(panel, scale, point, area, x, y)
     local function equal(a, b)
-        return a and b and math.abs(a - b) < 0.000001
+        -- Frame getters round to native float precision. A tighter tolerance
+        -- repeatedly clears unchanged anchors and invalidates item rectangles.
+        return a and b and math.abs(a - b) < 0.001
     end
     if not equal(panel:GetScale(), scale) then panel:SetScale(scale) end
     if panel:GetNumPoints() == 1 then

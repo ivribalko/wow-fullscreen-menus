@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Allowed native coordinate rounding when comparing saved menu placement, avoiding repeated anchor resets that invalidate inventory cells during gamepad navigation.
+
+- Restored combined-inventory fullscreen placement immediately after native bag positioning, avoiding the periodic-refresh delay during gamepad navigation.
+
 - Preserved native barbershop presentation and its Reset, Accept, and Cancel buttons.
 
 - Rotated both NPC and player conversation models together with horizontal right-stick movement.

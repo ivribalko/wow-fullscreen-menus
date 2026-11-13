@@ -984,6 +984,18 @@ function Integration:ConfigureBagOwner()
 end
 
 function Integration:InstallHooks()
+    if UpdateContainerFrameAnchors then
+        hooksecurefunc("UpdateContainerFrameAnchors", function()
+            -- Native bag updates restore default geometry. Reapply the saved fit
+            -- before navigation can observe it between periodic layout refreshes.
+            -- Only an existing fit is eligible; opening still measures once.
+            local state = UI.nativePanelLayout
+            if state and state.applied and state.panel == ContainerFrameCombinedBags
+                and UI:GetNativePanel() == state.panel then
+                UI:LayoutNativePanel()
+            end
+        end)
+    end
     if BankFrame then
         BankFrame:HookScript("OnHide", function()
             --@alpha@
